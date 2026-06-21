@@ -27,6 +27,7 @@ export interface CartItem {
   quantity: number;
   customization?: Customization;
   add_ons: AddOn[];
+  image_url?: string;
 }
 
 interface CartState {

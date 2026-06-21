@@ -345,6 +345,7 @@ export default function HomeScreen() {
       base_price: product.basePrice,
       quantity: 1,
       add_ons: [],
+      image_url: product.imageUrl || undefined,
     });
   };
 

@@ -256,6 +256,9 @@ export default function ProductDetailScreen() {
   const handleAddToCart = () => {
     if (!product || !selectedVariant) return;
 
+    const coverImage = product.product_media.find(m => m.type === 'image' && m.is_cover) 
+                    || product.product_media.find(m => m.type === 'image');
+
     addItem({
       product_id: product.id,
       variant_id: selectedVariant.id,
@@ -272,6 +275,7 @@ export default function ProductDetailScreen() {
         name: a.name,
         price: a.price,
       })),
+      image_url: coverImage?.url,
     });
 
     // Redirigir a la pestaña del carrito

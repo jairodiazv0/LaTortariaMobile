@@ -39,3 +39,14 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Contenedores de llaves secretas (¡Crítico!)
+.env
+.env.local
+.env.*
+
+# Archivos de texto locales auxiliares
+estructura_arbol.txt
+
+# Carpetas de respaldo o backend externas a la App Móvil
+supabase_LaTortariaMobile/

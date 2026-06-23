@@ -37,10 +37,14 @@ interface CartState {
   updateQuantity: (cart_id: string, quantity: number) => void;
   clearCart: () => void;
   getTotalPrice: () => number;
+  isVerifyingPayment: boolean;
+  setVerifyingPayment: (value: boolean) => void;
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
+  isVerifyingPayment: false,
+  setVerifyingPayment: (value) => set({ isVerifyingPayment: value }),
 
   addItem: (newItem) => set((state) => {
     // Generamos un hash o ID único combinando variante + textos para saber si es un ítem único

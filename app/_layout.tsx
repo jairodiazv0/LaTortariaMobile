@@ -7,18 +7,16 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { useCartStore } from '@/store/useCartStore';
+import { supabase } from '@/lib/supabase'; // ← Asegúrate que este path coincide con tu proyecto
 
 export {
-  // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -26,7 +24,6 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -50,20 +47,34 @@ function RootLayoutNav() {
   const setVerifyingPayment = useCartStore((s) => s.setVerifyingPayment);
 
   useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
+    const handleDeepLink = async (event: { url: string }) => {
       const { url } = event;
+
+      // ── CASO 1: Callback de verificación de correo de Supabase Auth ──────────
+      // Cuando el usuario hace clic en el email de verificación, Supabase redirige
+      // a latortariamobile://auth/callback con el token en el fragmento (#).
+      // El cliente de Supabase lo procesa automáticamente al llamar getSession().
+      if (url.includes('latortariamobile://auth/callback')) {
+        // El SDK de Supabase detecta el token en el fragmento de la URL y
+        // levanta la sesión internamente. onAuthStateChange en profile.tsx
+        // recibirá el evento SIGNED_IN y actualizará el estado de la app.
+        await supabase.auth.getSession();
+        // Redirigir al panel de cuenta para que el usuario vea su sesión activa
+        router.push('/(tabs)/profile');
+        return; // No continuar al bloque de checkout
+      }
+
+      // ── CASO 2: Callback de resultado de pago (Wompi) ─────────────────────────
       if (url.includes('latortariamobile://checkout/result')) {
-        // Navegar al tab del carrito si no está activo
         router.push('/(tabs)/cart');
-        // Señalizar a CartScreen que debe iniciar el paso 'verifying'
         setVerifyingPayment(true);
       }
     };
 
-    // Caso 1: App en background — escucha eventos entrantes
+    // App en background — escucha eventos de deep link entrantes
     const subscription = Linking.addEventListener('url', handleDeepLink);
 
-    // Caso 2: Cold start — app estaba completamente cerrada
+    // Cold start — app estaba completamente cerrada
     Linking.getInitialURL().then((url) => {
       if (url) handleDeepLink({ url });
     });
@@ -81,4 +92,3 @@ function RootLayoutNav() {
     </ThemeProvider>
   );
 }
-

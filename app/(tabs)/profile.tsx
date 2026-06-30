@@ -1,10 +1,14 @@
 /**
  * profile.tsx — Pantalla de Identidad y Cuenta
- * LaTortariaMobile · Arquitectura de Auth Blindada v2
+ * LaTortariaMobile · Arquitectura de Auth Blindada v3
  *
  * Máquina de estados:
- *   GUEST  → Formulario de Login / Registro
+ *   GUEST  → Formulario de Login / Registro + Botones sociales (Google, Apple)
  *   AUTHED → Panel con sub-menú: Pedidos | Favoritos | Mi Perfil
+ *
+ * Auth Social añadida en v3:
+ *   - Google OAuth  → WebBrowser (compatible Expo Go, Android e iOS)
+ *   - Apple Sign-In → Nativo expo-apple-authentication (solo iOS)
  *
  * Secciones del panel autenticado:
  *   'orders'    → Historial con acordeón de detalle de ítems
@@ -39,6 +43,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -263,7 +269,6 @@ export default function ProfileScreen() {
     if (favRes.data) {
       const mapped: FavoriteProduct[] = favRes.data.map((row: any) => {
         const prod = row.products;
-        // Buscar la imagen de portada; si no hay, tomar la primera disponible
         const cover =
           prod?.product_media?.find((m: any) => m.is_cover)?.url
           ?? prod?.product_media?.[0]?.url
@@ -281,7 +286,7 @@ export default function ProfileScreen() {
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // AUTH LISTENER — eventos discriminados (Problema #6)
+  // AUTH LISTENER — eventos discriminados
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -341,12 +346,10 @@ export default function ProfileScreen() {
       }
 
       if (data.session === null) {
-        // Estado C — no hay sesión: NO tocar profiles (RLS rechazaría con 42501)
         Alert.alert('¡Casi listo!', 'Te enviamos un correo de verificación. Revísalo para activar tu cuenta y vuelve a iniciar sesión.');
         return;
       }
 
-      // Estado D — sesión directa: upsert seguro porque auth.uid() ya es válido
       if (data.user) {
         await supabase.from('profiles').upsert(
           { id: data.user.id, full_name: fullName.trim(), phone: phone.trim() || null },
@@ -378,6 +381,91 @@ export default function ProfileScreen() {
           Alert.alert('Correo sin verificar', 'Revisa tu bandeja y confirma tu correo antes de ingresar.');
         else Alert.alert('Error', error.message);
       }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GOOGLE SIGN-IN — OAuth por navegador seguro (compatible con Expo Go)
+  //
+  // Flujo:
+  //   1. Supabase genera la URL de consentimiento de Google
+  //   2. WebBrowser abre un SFSafariViewController (iOS) o Chrome Custom Tab (Android)
+  //   3. Google redirige a latortariamobile://auth/callback con tokens en el hash
+  //   4. _layout.tsx intercepta el deep link, extrae tokens y llama setSession()
+  //   5. onAuthStateChange(SIGNED_IN) actualiza esta pantalla automáticamente
+  //
+  // IMPORTANTE: skipBrowserRedirect: true es obligatorio. Sin él, el SDK intenta
+  // hacer una redirección de ventana del navegador de escritorio que crashea en
+  // entornos nativos.
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleGoogleSignIn = async () => {
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'latortariamobile://auth/callback',
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error) {
+        Alert.alert('Error con Google', error.message);
+        return;
+      }
+
+      if (data?.url) {
+        // Abre el navegador nativo seguro. El resultado se maneja vía deep link
+        // en _layout.tsx; no es necesario procesar el resultado de openBrowserAsync.
+        await WebBrowser.openBrowserAsync(data.url);
+      }
+    } catch (e: any) {
+      Alert.alert('Error con Google', e.message ?? 'No se pudo iniciar el flujo de Google. Intenta de nuevo.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // APPLE SIGN-IN — Nativo para iOS (SOLO se renderiza en iOS)
+  //
+  // Flujo:
+  //   1. El sistema iOS muestra la hoja de consentimiento nativa de Apple
+  //   2. Apple devuelve un identityToken JWT firmado
+  //   3. Supabase valida el token criptográficamente y crea/recupera la sesión
+  //   4. onAuthStateChange(SIGNED_IN) actualiza esta pantalla automáticamente
+  //
+  // ERR_CANCELED: error esperado cuando el usuario cierra la hoja de Apple.
+  // No se muestra alerta para no interrumpir la experiencia.
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleAppleSignIn = async () => {
+    setSubmitting(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (credential.identityToken) {
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: credential.identityToken,
+        });
+
+        if (error) {
+          Alert.alert('Error con Apple', error.message);
+        }
+        // Si es exitoso: onAuthStateChange(SIGNED_IN) actualiza la UI.
+        // El upsert de seguridad en loadUserData maneja perfiles huérfanos.
+      }
+    } catch (e: any) {
+      // ERR_CANCELED = usuario cerró la hoja de Apple. No es un error real.
+      if (e.code === 'ERR_CANCELED') return;
+      Alert.alert('Error con Apple', e.message ?? 'No se pudo iniciar el flujo de Apple. Intenta de nuevo.');
     } finally {
       setSubmitting(false);
     }
@@ -519,6 +607,41 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* ── Divisor social ─────────────────────────────────────────────── */}
+          <View style={s.socialDivider}>
+            <View style={s.socialDividerLine} />
+            <Text style={s.socialDividerText}>O entra con</Text>
+            <View style={s.socialDividerLine} />
+          </View>
+
+          {/* ── Botones sociales ────────────────────────────────────────────── */}
+          <View style={s.socialButtons}>
+
+            {/* Google — disponible en Android e iOS */}
+            <TouchableOpacity
+              style={[s.socialButton, submitting && s.primaryButtonDisabled]}
+              onPress={handleGoogleSignIn}
+              activeOpacity={0.85}
+              disabled={submitting}
+            >
+              {/* Icono SVG de Google via texto unicode — reemplaza con tu imagen si tienes */}
+              <Text style={s.socialButtonIcon}>G</Text>
+              <Text style={s.socialButtonText}>Continuar con Google</Text>
+            </TouchableOpacity>
+
+            {/* Apple — SOLO iOS. Condicional para evitar rechazo en Play Store */}
+            {Platform.OS === 'ios' && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={BRAND.radius}
+                style={s.appleButton}
+                onPress={handleAppleSignIn}
+              />
+            )}
+          </View>
+
         </ScrollView>
       </KeyboardAvoidingView>
     );
@@ -594,7 +717,6 @@ export default function ProfileScreen() {
                   onPress={() => setExpandedOrderId(expanded ? null : order.id)}
                   activeOpacity={0.85}
                 >
-                  {/* Cabecera del pedido */}
                   <View style={s.orderCardTop}>
                     <View style={[s.statusBadge, { backgroundColor: bg }]}>
                       <Text style={[s.statusBadgeText, { color }]}>{label}</Text>
@@ -610,7 +732,6 @@ export default function ProfileScreen() {
                     </View>
                   </View>
 
-                  {/* Metadatos */}
                   <View style={s.orderCardMeta}>
                     <Feather name="calendar" size={12} color={BRAND.inkLight} />
                     <Text style={s.orderMeta}>Entrega: {formatDate(order.delivery_date)}</Text>
@@ -618,7 +739,6 @@ export default function ProfileScreen() {
                     <Text style={s.orderMeta}>{formatDate(order.created_at)}</Text>
                   </View>
 
-                  {/* ACORDEÓN — detalle de ítems */}
                   {expanded && order.order_items.length > 0 && (
                     <View style={s.accordion}>
                       <View style={s.accordionDivider} />
@@ -626,20 +746,14 @@ export default function ProfileScreen() {
                       {order.order_items.map((item) => (
                         <View key={item.id} style={s.accordionItem}>
                           {item.image_snapshot ? (
-                            <Image
-                              source={{ uri: item.image_snapshot }}
-                              style={s.itemImage}
-                              resizeMode="cover"
-                            />
+                            <Image source={{ uri: item.image_snapshot }} style={s.itemImage} resizeMode="cover" />
                           ) : (
                             <View style={[s.itemImage, s.itemImagePlaceholder]}>
                               <Feather name="image" size={14} color={BRAND.inkLight} />
                             </View>
                           )}
                           <View style={s.itemInfo}>
-                            <Text style={s.itemName} numberOfLines={2}>
-                              {item.product_name_snapshot ?? 'Producto'}
-                            </Text>
+                            <Text style={s.itemName} numberOfLines={2}>{item.product_name_snapshot ?? 'Producto'}</Text>
                             {item.variant_name_snapshot ? (
                               <Text style={s.itemVariant}>{item.variant_name_snapshot}</Text>
                             ) : null}
@@ -648,7 +762,6 @@ export default function ProfileScreen() {
                           <Text style={s.itemPrice}>{formatCOP(item.price_at_purchase)}</Text>
                         </View>
                       ))}
-                      {/* Total del acordeón */}
                       <View style={s.accordionTotal}>
                         <Text style={s.accordionTotalLabel}>Total</Text>
                         <Text style={s.accordionTotalAmount}>{formatCOP(order.total_amount)}</Text>
@@ -691,7 +804,6 @@ export default function ProfileScreen() {
                       </View>
                     )}
                   </View>
-                  {/* Indicador visual de favorito activo */}
                   <View style={s.favHeart}>
                     <Feather name="heart" size={14} color={BRAND.rose} />
                   </View>
@@ -706,7 +818,6 @@ export default function ProfileScreen() {
       {activeSection === 'profile' && (
         <View style={s.section}>
           {!editMode ? (
-            // Vista de solo lectura
             <View style={s.profileCard}>
               <ProfileRow icon="user" label="Nombre" value={profile?.full_name ?? '—'} />
               <ProfileRow icon="mail" label="Correo" value={user.email ?? '—'} />
@@ -725,7 +836,6 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            // Formulario de edición
             <View style={s.profileCard}>
               <Text style={s.editSectionTitle}>Actualizar datos</Text>
               <FormField icon="user" label="Nombre completo" placeholder="Tu nombre"
@@ -949,4 +1059,26 @@ const s = StyleSheet.create({
   toggleMode: { alignItems: 'center', paddingTop: 20 },
   toggleModeText: { fontFamily: BRAND.fontBody, fontSize: 14, color: BRAND.inkMid },
   toggleModeLink: { color: BRAND.rose, fontWeight: '700' },
+
+  // ── Divisor social ────────────────────────────────────────────────────────
+  socialDivider: { flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 20, gap: 12 },
+  socialDividerLine: { flex: 1, height: 1, backgroundColor: BRAND.divider },
+  socialDividerText: { fontFamily: BRAND.fontBody, fontSize: 13, color: BRAND.inkLight, fontWeight: '500' },
+
+  // ── Botones sociales ──────────────────────────────────────────────────────
+  socialButtons: { gap: 12 },
+  socialButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    height: 52, borderRadius: BRAND.radius,
+    backgroundColor: BRAND.white,
+    borderWidth: 1.5, borderColor: BRAND.divider,
+    shadowColor: BRAND.ink, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+  },
+  socialButtonIcon: {
+    fontFamily: BRAND.fontBody, fontSize: 17, fontWeight: '700', color: '#4285F4',
+    // La "G" de Google en azul. Si tienes la imagen del logo, reemplaza con <Image>
+  },
+  socialButtonText: { fontFamily: BRAND.fontBody, fontSize: 15, color: BRAND.ink, fontWeight: '600' },
+  // El botón de Apple usa su propio componente nativo con estilo propio
+  appleButton: { width: '100%', height: 52 },
 });

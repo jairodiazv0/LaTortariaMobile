@@ -1,95 +1,78 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import type { ComponentProps } from 'react';
-import { Platform, type ColorValue } from 'react-native';
+import { Platform } from 'react-native';
 
-import { useCartStore } from '@/store/useCartStore';
-
+// ─── TOKENS VISUALES DE LA MARCA (Sincronizados con tu profile.tsx) ──────────
 const BRAND = {
-  tabBarBackground: '#FAFAFA',
-  active: '#FF6B00',
-  inactive: '#8E8E93',
-  border: '#E5E5EA',
-} as const;
+  cream: '#FAF7F2',
+  rose: '#C8745A',
+  ink: '#2C2018',
+  inkMid: '#6B5744',
+  divider: '#EDE4D8',
+  white: '#FFFFFF',
+  fontBody: Platform.select({ ios: 'System', android: 'sans-serif' }) as string,
+};
 
-type FeatherIconName = ComponentProps<typeof Feather>['name'];
-
-function TabBarIcon({
-  name,
-  color,
-  size = 24,
-}: {
-  name: FeatherIconName;
-  color: ColorValue;
-  size?: number;
-}) {
-  return <Feather name={name} size={size} color={color} />;
-}
-
-export default function TabLayout() {
-  const cartItemCount = useCartStore((state) =>
-    state.items.reduce((sum, item) => sum + item.quantity, 0),
-  );
-
+export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: BRAND.active,
-        tabBarInactiveTintColor: BRAND.inactive,
+        // Color del icono y texto cuando la pestaña está seleccionada
+        tabBarActiveTintColor: BRAND.rose,
+        // Color del icono y texto cuando la pestaña está inactiva
+        tabBarInactiveTintColor: '#8E8E93',
+        // Estilización premium de la barra inferior de La Tortaría
         tabBarStyle: {
-          backgroundColor: BRAND.tabBarBackground,
-          borderTopColor: BRAND.border,
+          backgroundColor: BRAND.white,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-          paddingTop: 8,
+          borderTopColor: BRAND.divider,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 4,
         },
         tabBarLabelStyle: {
+          fontFamily: BRAND.fontBody,
           fontSize: 11,
           fontWeight: '600',
         },
-      }}>
+        // Ocultamos el header nativo de Expo para usar tus propios diseños limpios
+        headerShown: false,
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Inicio',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="home" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
           title: 'Explorar',
-          tabBarIcon: ({ color }) => <TabBarIcon name="search" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="search" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="favorites"
         options={{
           title: 'Favoritos',
-          tabBarIcon: ({ color }) => <TabBarIcon name="heart" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="heart" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="cart"
         options={{
           title: 'Carrito',
-          tabBarIcon: ({ color }) => <TabBarIcon name="shopping-cart" color={color} />,
-          tabBarBadge: cartItemCount > 0 ? cartItemCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: BRAND.active,
-            color: '#FFFFFF',
-            fontSize: 10,
-            fontWeight: '700',
-          },
+          tabBarIcon: ({ color, size }) => <Feather name="shopping-cart" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Cuenta',
-          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="user" size={size - 2} color={color} />,
         }}
       />
     </Tabs>

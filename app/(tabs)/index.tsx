@@ -92,20 +92,30 @@ function formatCOP(price: number): string {
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
 
-function HomeHeader() {
+function HomeHeader({ profileName }: { profileName: string | null }) {
+  const router = useRouter();
   const locationDate = useMemo(() => formatLocationDate(new Date()), []);
+
+  const displayName = profileName || 'Invitado';
+  const firstName = displayName.split(' ')[0];
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <View style={styles.header}>
       <View style={styles.headerTopRow}>
         <View style={styles.headerCopy}>
           <Text style={styles.locationText}>{locationDate}</Text>
-          <Text style={styles.greetingText}>Buenas, Jairo</Text>
+          <Text style={styles.greetingText}>Buenas, {firstName}</Text>
           <Text style={styles.guideQuestion}>¿Qué se te antoja hoy?</Text>
         </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarInitial}>J</Text>
-        </View>
+        {/* ── AVATAR INTERACTIVO CON INICIAL DINÁMICA ── */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push('/(tabs)/profile')}
+          style={styles.avatar}
+        >
+          <Text style={styles.avatarInitial}>{initial}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchRow}>
@@ -239,10 +249,56 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
+  const [profileName, setProfileName] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Auth Listener: sincroniza el nombre del usuario en tiempo real ──────────
+  useEffect(() => {
+    const fetchProfileName = async (currUser: any) => {
+      if (!currUser) {
+        setProfileName(null);
+        return;
+      }
+
+      // 1. Intentar leer de la tabla pública 'profiles'
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', currUser.id)
+        .single();
+
+      // Si existe un nombre real en la base de datos y no es el genérico 'Cliente'
+      if (data?.full_name && data.full_name !== 'Cliente') {
+        setProfileName(data.full_name);
+      } else {
+        // 2. Fallback Inmediato: Extraer de los metadatos nativos de Google (full_name o name)
+        const googleName = currUser.user_metadata?.full_name || currUser.user_metadata?.name;
+        
+        // 3. Segundo Fallback: El prefijo de su correo (ej: 'deisytamayo' si es deisytamayo@gmail.com)
+        const emailPrefix = currUser.email ? currUser.email.split('@')[0] : null;
+
+        // Asignamos el primer nombre real que encontremos, capitalizando la inicial
+        const finalName = googleName || emailPrefix || 'Cliente';
+        setProfileName(finalName);
+      }
+    };
+
+    // Leer sesión inicial al montar la pantalla (Pasamos el usuario directamente)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      fetchProfileName(session?.user ?? null);
+    });
+
+    // Escuchar cambios globales: login, logout, OAuth callback
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      fetchProfileName(session?.user ?? null);
+    });
+
+    return () => authListener.subscription.unsubscribe();
+  }, []);
+
+  // ── Carga de productos desde Supabase ────────────────────────────────────────
   useEffect(() => {
     async function fetchProducts() {
       try {
@@ -364,7 +420,7 @@ export default function HomeScreen() {
         { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 100 },
       ]}
       showsVerticalScrollIndicator={false}>
-      <HomeHeader />
+      <HomeHeader profileName={profileName} />
       <OccasionSection />
 
       {loading ? (

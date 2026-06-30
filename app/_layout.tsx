@@ -7,7 +7,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { useCartStore } from '@/store/useCartStore';
-import { supabase } from '@/lib/supabase'; // ← Asegúrate que este path coincide con tu proyecto
+import { supabase } from '@/lib/supabase';
 
 export {
   ErrorBoundary,
@@ -19,8 +19,16 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
+// ─── HELPER — Extrae parámetros del fragmento hash de una URL ─────────────────
+function extractParamsFromHash(urlStr: string): Record<string, string> | null {
+  const hash = urlStr.split('#')[1];
+  if (!hash) return null;
+  return Object.fromEntries(new URLSearchParams(hash).entries());
+}
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
+    // Al estar en app/ usamos un solo nivel hacia atrás para llegar a la raíz
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
@@ -50,36 +58,40 @@ function RootLayoutNav() {
     const handleDeepLink = async (event: { url: string }) => {
       const { url } = event;
 
-      // ── CASO 1: Callback de verificación de correo de Supabase Auth ──────────
-      // Cuando el usuario hace clic en el email de verificación, Supabase redirige
-      // a latortariamobile://auth/callback con el token en el fragmento (#).
-      // El cliente de Supabase lo procesa automáticamente al llamar getSession().
+      // ── CASO 1: Callback de verificación de correo / OAuth de Supabase ──
       if (url.includes('latortariamobile://auth/callback')) {
-        // El SDK de Supabase detecta el token en el fragmento de la URL y
-        // levanta la sesión internamente. onAuthStateChange en profile.tsx
-        // recibirá el evento SIGNED_IN y actualizará el estado de la app.
-        await supabase.auth.getSession();
-        // Redirigir al panel de cuenta para que el usuario vea su sesión activa
+        const params = extractParamsFromHash(url);
+
+        if (params?.access_token && params?.refresh_token) {
+          const { error } = await supabase.auth.setSession({
+            access_token: params.access_token,
+            refresh_token: params.refresh_token,
+          });
+
+          if (error && __DEV__) {
+            console.warn('[Auth] setSession error:', error.message);
+          }
+        } else {
+          await supabase.auth.getSession();
+        }
+
         router.push('/(tabs)/profile');
-        return; // No continuar al bloque de checkout
+        return;
       }
 
-      // ── CASO 2: Callback de resultado de pago (Wompi) ─────────────────────────
+      // ── CASO 2: Callback de resultado de pago (Wompi) ────────────────────────
       if (url.includes('latortariamobile://checkout/result')) {
         router.push('/(tabs)/cart');
         setVerifyingPayment(true);
       }
     };
 
-    // App en background — escucha eventos de deep link entrantes
     const subscription = Linking.addEventListener('url', handleDeepLink);
 
-    // Cold start — app estaba completamente cerrada
     Linking.getInitialURL().then((url) => {
       if (url) handleDeepLink({ url });
     });
 
-    // Cleanup obligatorio — previene memory leaks y listeners duplicados
     return () => subscription.remove();
   }, []);
 

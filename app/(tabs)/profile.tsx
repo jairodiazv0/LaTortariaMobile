@@ -181,6 +181,7 @@ export default function ProfileScreen() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // ── Auth form UI ───────────────────────────────────────────────────────────
   const [authMode, setAuthMode] = useState<AuthMode>('login');
@@ -510,6 +511,41 @@ export default function ProfileScreen() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
+  // ELIMINAR CUENTA
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleDeleteAccount = (): void => {
+    Alert.alert(
+      '⚠️ Eliminar cuenta',
+      '¿Estás completamente segura? Esta acción es irreversible y perderás todo tu historial de pedidos.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingAccount(true);
+            try {
+              const { error } = await supabase.rpc('eliminar_mi_propia_cuenta');
+              if (error) {
+                Alert.alert('Error al eliminar', error.message);
+              } else {
+                // ⚡ ¡CORREGIDO! Forzamos el cierre de sesión local en el dispositivo.
+                // Esto vacía el SecureStore, activa el evento SIGNED_OUT en el listener,
+                // y transforma la interfaz al estado de Invitado de forma instantánea.
+                await supabase.auth.signOut();
+                
+                Alert.alert('Cuenta eliminada', 'Tu información ha sido borrada con éxito.');
+              }
+            } finally {
+              setDeletingAccount(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
   // RENDER — Carga inicial
   // ─────────────────────────────────────────────────────────────────────────
   if (loading) {
@@ -834,6 +870,24 @@ export default function ProfileScreen() {
                 <Feather name="edit-2" size={15} color={BRAND.rose} />
                 <Text style={s.editButtonText}>Editar información</Text>
               </TouchableOpacity>
+
+              {/* ── Divisor fino ──────────────────────────────────────────── */}
+              <View style={s.deleteAccountDivider} />
+
+              {/* ── Botón eliminar cuenta ─────────────────────────────────── */}
+              <TouchableOpacity
+                style={[s.deleteAccountButton, deletingAccount && { opacity: 0.55 }]}
+                onPress={handleDeleteAccount}
+                activeOpacity={0.75}
+                disabled={deletingAccount}
+              >
+                {deletingAccount ? (
+                  <ActivityIndicator size="small" color="#C0392B" />
+                ) : (
+                  <Feather name="trash-2" size={15} color="#C0392B" />
+                )}
+                <Text style={s.deleteAccountText}>Eliminar mi cuenta definitivamente</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={s.profileCard}>
@@ -1022,6 +1076,11 @@ const s = StyleSheet.create({
   profileRowValue: { fontFamily: BRAND.fontBody, fontSize: 14, color: BRAND.ink, fontWeight: '500' },
   editButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 14, justifyContent: 'center' },
   editButtonText: { fontFamily: BRAND.fontBody, fontSize: 14, color: BRAND.rose, fontWeight: '600' },
+
+  // Zona de peligro — Eliminar cuenta
+  deleteAccountDivider: { height: 1, backgroundColor: BRAND.divider, marginTop: 16, marginHorizontal: -4 },
+  deleteAccountButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 14, paddingBottom: 2, justifyContent: 'center' },
+  deleteAccountText: { fontFamily: BRAND.fontBody, fontSize: 13, color: '#C0392B', fontWeight: '500' },
   editSectionTitle: { fontFamily: BRAND.fontDisplay, fontSize: 16, color: BRAND.ink, fontWeight: '700', marginBottom: 16 },
   editEmailNote: { fontFamily: BRAND.fontBody, fontSize: 12, color: BRAND.inkLight, marginBottom: 16, fontStyle: 'italic' },
   editActions: { flexDirection: 'row', gap: 10, marginTop: 4 },

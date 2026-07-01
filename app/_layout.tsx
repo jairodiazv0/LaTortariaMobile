@@ -75,7 +75,13 @@ function RootLayoutNav() {
           await supabase.auth.getSession();
         }
 
-        router.push('/(tabs)/profile');
+        // Redirigir al panel de cuenta para que el usuario vea su sesión activa.
+        // ⚡ ¡CORREGIDO! Agregamos un pequeño delay para permitir que el árbol nativo de
+        // navegación se monte por completo en un Cold Start, evitando el flash de "Screen doesn't exist".
+        setTimeout(() => {
+          router.replace('/profile');
+        }, 400);
+
         return;
       }
 

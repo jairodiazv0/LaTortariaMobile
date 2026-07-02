@@ -1,25 +1,177 @@
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { supabase } from '../../lib/supabase';
+
+const BRAND = {
+  cream: '#FAF7F2',
+  orange: '#FF6B00',
+  surface: '#FFFFFF',
+  textPrimary: '#1A1A1A',
+  textSecondary: '#8E8E93',
+  textMuted: '#3A3A3C',
+  border: '#E5E5EA',
+  imagePlaceholder: '#EDEEF2',
+};
+
+interface FavoriteProduct {
+  id: string;
+  product_id: string;
+  name: string;
+  rating_avg: number | null;
+  coverUrl: string | null;
+  basePrice: number;
+}
 
 export default function FavoritesScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const loadFavorites = useCallback(async (userId: string) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('user_interactions')
+        .select(`
+          id,
+          product_id,
+          products (
+            name,
+            rating_avg,
+            product_variants ( price, is_active ),
+            product_media ( url, is_cover )
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('interaction_type', 'favorite')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        const mapped: FavoriteProduct[] = data.map((row: any) => {
+          const prod = row.products;
+          const cover = prod?.product_media?.find((m: any) => m.is_cover)?.url ?? prod?.product_media?.[0]?.url ?? null;
+          const activeVars = prod?.product_variants?.filter((v: any) => v.is_active) ?? [];
+          const price = activeVars.length > 0 ? Number(activeVars[0].price) : 0;
+
+          return {
+            id: row.id,
+            product_id: row.product_id,
+            name: prod?.name ?? 'Producto',
+            rating_avg: prod?.rating_avg ?? null,
+            coverUrl: cover,
+            basePrice: price,
+          };
+        });
+        setFavorites(mapped);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session?.user);
+      if (session?.user) loadFavorites(session.user.id);
+      else setLoading(false);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session?.user);
+      if (session?.user) loadFavorites(session.user.id);
+      else {
+        setFavorites([]);
+        setLoading(false);
+      }
+    });
+
+    return () => authListener.subscription.unsubscribe();
+  }, [loadFavorites]);
+
+  if (loading) {
+    return (
+      <View style={[s.center, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={BRAND.orange} />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <View style={[s.center, { paddingTop: insets.top, paddingHorizontal: 32 }]}>
+        <Feather name="lock" size={44} color={BRAND.textSecondary} />
+        <Text style={s.title}>Inicia sesión</Text>
+        <Text style={s.subtitle}>Ingresa a tu cuenta para poder guardar y ver tus productos favoritos.</Text>
+        <TouchableOpacity style={s.authButton} onPress={() => router.push('/profile')}>
+          <Text style={s.authButtonText}>Ir a Mi Cuenta</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Pantalla de Favoritos — Próximamente</Text>
-    </View>
+    <ScrollView style={s.root} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <Text style={s.screenTitle}>Mis Favoritos</Text>
+      
+      {favorites.length === 0 ? (
+        <View style={s.emptyState}>
+          <Feather name="heart" size={48} color={BRAND.textSecondary} />
+          <Text style={s.emptyTitle}>Sin favoritos aún</Text>
+          <Text style={s.emptySubtitle}>Explora nuestro menú y marca con un ♡ los pasteles que más te gusten.</Text>
+        </View>
+      ) : (
+        <View style={s.grid}>
+          {favorites.map((fav) => (
+            <TouchableOpacity key={fav.id} style={s.card} activeOpacity={0.85} onPress={() => router.push({ pathname: "/product/[id]", params: { id: fav.product_id } })}>
+              {fav.coverUrl ? (
+                <Image source={{ uri: fav.coverUrl }} style={s.image} resizeMode="cover" />
+              ) : (
+                <View style={[s.image, { alignItems: 'center', justifyContent: 'center', backgroundColor: BRAND.imagePlaceholder }]}>
+                  <Text style={{ fontSize: 24 }}>🍰</Text>
+                </View>
+              )}
+              <View style={s.info}>
+                <Text style={s.name} numberOfLines={2}>{fav.name}</Text>
+                <Text style={s.price}>${fav.basePrice.toLocaleString('es-CO')}</Text>
+                {fav.rating_avg != null && fav.rating_avg > 0 && (
+                  <View style={s.rating}>
+                    <Feather name="star" size={11} color={BRAND.orange} />
+                    <Text style={s.ratingText}>{Number(fav.rating_avg).toFixed(1)}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5F7FA',
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3A3A3C',
-    textAlign: 'center',
-    paddingHorizontal: 24,
-  },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: BRAND.cream },
+  center: { flex: 1, backgroundColor: BRAND.cream, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  screenTitle: { fontSize: 24, fontWeight: '800', color: BRAND.textPrimary, marginBottom: 20 },
+  title: { fontSize: 18, fontWeight: '700', color: BRAND.textPrimary, marginTop: 12 },
+  subtitle: { fontSize: 14, color: BRAND.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: 4 },
+  authButton: { backgroundColor: BRAND.orange, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, marginTop: 16 },
+  authButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: BRAND.textPrimary },
+  emptySubtitle: { fontSize: 14, color: BRAND.textSecondary, textAlign: 'center', paddingHorizontal: 20 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  card: { width: '48%', backgroundColor: BRAND.surface, borderRadius: 16, borderWidth: 1, borderColor: BRAND.border, overflow: 'hidden' },
+  image: { width: '100%', height: 120 },
+  info: { padding: 12, gap: 4 },
+  name: { fontSize: 13, fontWeight: '700', color: BRAND.textPrimary, lineHeight: 17 },
+  price: { fontSize: 14, fontWeight: '800', color: BRAND.orange },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingText: { fontSize: 11, color: BRAND.textMuted, fontWeight: '600' },
 });

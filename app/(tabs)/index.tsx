@@ -43,6 +43,10 @@ interface DBProductMedia {
   is_cover: boolean;
 }
 
+interface DBCategory {
+  name: string;
+}
+
 interface DBProduct {
   id: string;
   name: string;
@@ -51,6 +55,8 @@ interface DBProduct {
   is_featured: boolean;
   rating_avg: number;
   review_count: number;
+  tags: string[] | null;
+  categories: DBCategory | null;
   product_variants: DBProductVariant[];
   product_media: DBProductMedia[];
 }
@@ -67,6 +73,8 @@ interface Product {
   compareAtPrice?: number | null;
   imageUrl?: string | null;
   badge?: ProductBadge;
+  categoryName?: string | null;
+  tags: string[];
 }
 
 // ─── Datos mock B2C ──────────────────────────────────────────────────────────
@@ -92,7 +100,15 @@ function formatCOP(price: number): string {
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
 
-function HomeHeader({ profileName }: { profileName: string | null }) {
+function HomeHeader({
+  profileName,
+  searchQuery,
+  onSearchChange,
+}: {
+  profileName: string | null;
+  searchQuery: string;
+  onSearchChange: (text: string) => void;
+}) {
   const router = useRouter();
   const locationDate = useMemo(() => formatLocationDate(new Date()), []);
 
@@ -126,10 +142,16 @@ function HomeHeader({ profileName }: { profileName: string | null }) {
             placeholder="Buscar pasteles, ocasiones..."
             placeholderTextColor="#8E8E93"
             returnKeyType="search"
+            value={searchQuery}
+            onChangeText={onSearchChange}
           />
         </View>
-        <TouchableOpacity style={styles.filterButton} activeOpacity={0.85}>
-          <Feather name="settings" size={20} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.filterButton}
+          activeOpacity={0.85}
+          onPress={() => (searchQuery ? onSearchChange('') : null)}
+        >
+          <Feather name={searchQuery ? 'x' : 'sliders'} size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>
@@ -207,11 +229,8 @@ function ProductCard({ product, onAdd, onPress }: ProductCardProps) {
           <TouchableOpacity
             style={styles.addButton}
             activeOpacity={0.85}
-            onPress={(e) => {
-              e.stopPropagation(); // Evitamos que abra la pantalla de detalle al agregar al carrito
-              onAdd(product);
-            }}>
-            <Text style={styles.addButtonText}>+</Text>
+            onPress={onPress}>
+            <Feather name="shopping-cart" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </View>
@@ -251,6 +270,7 @@ export default function HomeScreen() {
   const addItem = useCartStore((state) => state.addItem);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -316,6 +336,10 @@ export default function HomeScreen() {
             is_featured,
             rating_avg,
             review_count,
+            tags,
+            categories (
+              name
+            ),
             product_variants (
               id,
               price,
@@ -376,6 +400,8 @@ export default function HomeScreen() {
               compareAtPrice: baseVariant.compare_at_price ? Number(baseVariant.compare_at_price) : null,
               imageUrl: coverImage?.url || null,
               badge,
+              categoryName: dbProd.categories?.name || null,
+              tags: dbProd.tags || [],
             };
           })
           .filter((p): p is Product => p !== null);
@@ -391,6 +417,33 @@ export default function HomeScreen() {
 
     fetchProducts();
   }, []);
+
+  // ── Búsqueda reactiva con tolerancia a errores ortográficos (ej: "Thorta" -> "torta") ──
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return products;
+
+    // Normaliza texto: minúsculas, sin tildes y sin 'h' muda
+    const normalize = (str: string) =>
+      str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Elimina acentos
+        .replace(/h/g, ''); // Remueve la 'h' para tolerar "Thorta" o "Tortha" -> "torta"
+
+    const target = normalize(searchQuery);
+    return products.filter((product) => {
+      const haystack = [
+        product.name,
+        product.sizeLabel,
+        product.categoryName || '',
+        ...(product.tags || []),
+      ]
+        .map(normalize)
+        .join(' ');
+
+      return haystack.includes(target);
+    });
+  }, [products, searchQuery]);
 
   const handleAddProduct = (product: Product) => {
     addItem({
@@ -420,7 +473,7 @@ export default function HomeScreen() {
         { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 100 },
       ]}
       showsVerticalScrollIndicator={false}>
-      <HomeHeader profileName={profileName} />
+      <HomeHeader profileName={profileName} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
       <OccasionSection />
 
       {loading ? (
@@ -434,14 +487,14 @@ export default function HomeScreen() {
           <Text style={styles.errorText}>No pudimos conectar con la pastelería.</Text>
           <Text style={styles.errorSubtext}>{error}</Text>
         </View>
-      ) : products.length === 0 ? (
+      ) : filteredProducts.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyEmoji}>🧁</Text>
           <Text style={styles.emptyText}>Por el momento no hay productos disponibles.</Text>
         </View>
       ) : (
         <FeaturedSection
-          products={products}
+          products={filteredProducts}
           onAddProduct={handleAddProduct}
           onPressProduct={handlePressProduct}
         />
@@ -673,13 +726,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addButtonText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    lineHeight: 24,
-    marginTop: -1,
-  },
+
   productImage: {
     width: 96,
     height: 96,

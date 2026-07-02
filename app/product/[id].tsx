@@ -1,8 +1,9 @@
 import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState, useMemo } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Pressable,
@@ -98,6 +99,7 @@ export default function ProductDetailScreen() {
   const addItem = useCartStore((state) => state.addItem);
 
   // Estados de datos
+  const [userId, setUserId] = useState<string | null>(null);
   const [product, setProduct] = useState<DBProduct | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -114,6 +116,7 @@ export default function ProductDetailScreen() {
   const [isCustomizationCollapsed, setIsCustomizationCollapsed] = useState<boolean>(true);
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  const imageScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -122,6 +125,24 @@ export default function ProductDetailScreen() {
       try {
         setLoading(true);
         setError(null);
+
+        // 0. Verificar sesión activa y estado de favorito para este producto
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUserId(session.user.id);
+
+          const { data: favData } = await supabase
+            .from('user_interactions')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('product_id', id)
+            .eq('interaction_type', 'favorite')
+            .maybeSingle();
+
+          if (favData) {
+            setIsFavorite(true);
+          }
+        }
 
         // 1. Obtener producto detallado
         const { data: prodData, error: prodError } = await supabase
@@ -245,6 +266,50 @@ export default function ProductDetailScreen() {
     return pricePerUnit * quantity;
   }, [pricePerUnit, quantity]);
 
+  const handleToggleFavorite = async () => {
+    if (!userId) {
+      Alert.alert(
+        'Inicia sesión',
+        'Debes tener una cuenta activa para guardar tus pasteles favoritos.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Ir a mi Cuenta', onPress: () => router.push('/profile') },
+        ]
+      );
+      return;
+    }
+
+    const nextState = !isFavorite;
+    setIsFavorite(nextState); // Actualización optimista instantánea para excelente UX
+
+    try {
+      if (nextState) {
+        // Guardar en favoritos
+        const { error } = await supabase
+          .from('user_interactions')
+          .insert({
+            user_id: userId,
+            product_id: id,
+            interaction_type: 'favorite',
+          });
+        if (error) throw error;
+      } else {
+        // Eliminar de favoritos
+        const { error } = await supabase
+          .from('user_interactions')
+          .delete()
+          .eq('user_id', userId)
+          .eq('product_id', id)
+          .eq('interaction_type', 'favorite');
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      setIsFavorite(!nextState); // Revertir el estado visual si la red falla
+      console.error('Error actualizando favoritos:', err);
+      Alert.alert('Error', 'No pudimos procesar la solicitud en tus favoritos. Intenta nuevamente.');
+    }
+  };
+
   const handleToggleAddOn = (addon: AddOnOption) => {
     setSelectedAddOns((prev) =>
       prev.some((item) => item.id === addon.id)
@@ -311,6 +376,15 @@ export default function ProductDetailScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen 
+        options={{ 
+          title: product.name, 
+          headerShown: true,
+          headerStyle: { backgroundColor: '#FAF7F2' },
+          headerTintColor: '#2C2018',
+          headerTitleStyle: { fontWeight: '700', fontSize: 16 }
+        }} 
+      />
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}>
@@ -319,6 +393,7 @@ export default function ProductDetailScreen() {
         <View style={styles.galleryWrapper}>
           {productImages.length > 0 ? (
             <ScrollView
+              ref={imageScrollRef}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
@@ -369,7 +444,7 @@ export default function ProductDetailScreen() {
             <TouchableOpacity
               style={styles.floatingButton}
               activeOpacity={0.8}
-              onPress={() => setIsFavorite(!isFavorite)}>
+              onPress={handleToggleFavorite}>
               <Feather
                 name="heart"
                 size={22}
@@ -379,6 +454,36 @@ export default function ProductDetailScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {productImages.length > 1 && (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 20, marginVertical: 12 }}
+          >
+            {productImages.map((img, index) => {
+              const isSelected = activeImageIndex === index;
+              return (
+                <TouchableOpacity
+                  key={img.id}
+                  activeOpacity={0.8}
+                  onPress={() => imageScrollRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true })}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 10,
+                    borderWidth: 2,
+                    borderColor: isSelected ? '#FF6B00' : '#E5E5EA',
+                    overflow: 'hidden',
+                    backgroundColor: '#FFFFFF'
+                  }}
+                >
+                  <Image source={{ uri: img.url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* Detalles Base */}
         <View style={styles.body}>

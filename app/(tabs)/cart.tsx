@@ -46,20 +46,44 @@ function formatCOP(price: number): string {
   return `$${price.toLocaleString('es-CO')}`;
 }
 
-function getNext14Days() {
+function getAvailableDeliveryDays() {
   const days = [];
   const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
   const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-  for (let i = 1; i <= 14; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    days.push({
-      dateString: d.toISOString().split('T')[0],
-      dayName: weekdays[d.getDay()],
-      dayNum: d.getDate(),
-      monthName: months[d.getMonth()],
-    });
+  
+  const now = new Date();
+  
+  // REGLA 1: Hora de corte (15:00)
+  const minDate = new Date(now);
+  minDate.setHours(0, 0, 0, 0);
+  if (now.getHours() < 15) {
+    minDate.setDate(minDate.getDate() + 1); // Hoy + 1
+  } else {
+    minDate.setDate(minDate.getDate() + 2); // Hoy + 2
   }
+
+  // REGLA 2: Extensión del rango máximo (2 meses)
+  const maxDate = new Date(now);
+  maxDate.setHours(0, 0, 0, 0);
+  maxDate.setMonth(maxDate.getMonth() + 2);
+
+  const currentDate = new Date(minDate);
+  while (currentDate <= maxDate) {
+    // Formato YYYY-MM-DD considerando la zona horaria local
+    const yyyy = currentDate.getFullYear();
+    const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(currentDate.getDate()).padStart(2, '0');
+    
+    days.push({
+      dateString: `${yyyy}-${mm}-${dd}`,
+      dayName: weekdays[currentDate.getDay()],
+      dayNum: currentDate.getDate(),
+      monthName: months[currentDate.getMonth()],
+    });
+    
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
   return days;
 }
 
@@ -730,7 +754,7 @@ export default function CartScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.daysScroll}>
-            {getNext14Days().map((day) => {
+            {getAvailableDeliveryDays().map((day) => {
               const isSelected = deliveryDate === day.dateString;
               return (
                 <TouchableOpacity

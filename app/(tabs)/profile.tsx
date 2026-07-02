@@ -41,6 +41,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -313,6 +314,16 @@ export default function ProfileScreen() {
 
     return () => authListener.subscription.unsubscribe();
   }, [loadUserData]);
+
+  // ⚡ ¡NUEVO! Escuchador de enfoque: Re-crea la consulta de datos cada vez que el usuario
+  // entra a la pestaña de "Cuenta", asegurando sincronización instantánea con los cambios del carrito.
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadUserData(user.id);
+      }
+    }, [user, loadUserData])
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
   // REGISTRO

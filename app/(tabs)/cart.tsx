@@ -23,9 +23,6 @@ import { supabase } from '../../lib/supabase';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const SHIPPING_COST = 10_000;
-const FREE_SHIPPING_THRESHOLD = 100_000;
-
 const BRAND = {
   orange: '#FF6B00',
   primary: '#FF6B00',
@@ -50,9 +47,9 @@ function getAvailableDeliveryDays() {
   const days = [];
   const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
   const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-  
+
   const now = new Date();
-  
+
   // REGLA 1: Hora de corte (15:00)
   const minDate = new Date(now);
   minDate.setHours(0, 0, 0, 0);
@@ -73,17 +70,17 @@ function getAvailableDeliveryDays() {
     const yyyy = currentDate.getFullYear();
     const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
     const dd = String(currentDate.getDate()).padStart(2, '0');
-    
+
     days.push({
       dateString: `${yyyy}-${mm}-${dd}`,
       dayName: weekdays[currentDate.getDay()],
       dayNum: currentDate.getDate(),
       monthName: months[currentDate.getMonth()],
     });
-    
+
     currentDate.setDate(currentDate.getDate() + 1);
   }
-  
+
   return days;
 }
 
@@ -192,6 +189,8 @@ export default function CartScreen() {
   // Máquina de estados local
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'delivery' | 'verifying'>('cart');
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  const [shippingCost, setShippingCost] = useState<number>(10000); // Fallback por defecto
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(100000); // Fallback por defecto
 
   // SPEC 1: Refs para distinguir cierre manual vs cierre por deep link
   const isPollingRef = useRef(false);
@@ -215,20 +214,38 @@ export default function CartScreen() {
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
   const subtotal = getTotalPrice();
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
+  const shipping = subtotal >= freeShippingThreshold ? 0 : shippingCost;
   const total = subtotal + shipping - appliedDiscount;
 
   // ── Pre-poblar datos del usuario autenticado ──────────────────────────────
   useEffect(() => {
     async function loadUserData() {
       try {
+        // Consultar la configuración centralizada de envíos
+        const { data: shippingConfig, error: shippingError } = await supabase
+          .from('system_settings')
+          .select('shipping_fee, free_shipping_threshold')
+          .eq('id', 'shipping_config')
+          .maybeSingle();
+
+        if (shippingError) {
+          console.error('❌ Error RLS o lectura en system_settings:', shippingError.message);
+        }
+
+        if (shippingConfig) {
+          setShippingCost(Number(shippingConfig.shipping_fee));
+          setFreeShippingThreshold(Number(shippingConfig.free_shipping_threshold));
+        }
+
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         setEmail(user.email ?? '');
+
         const { data: profile } = await supabase
           .from('profiles').select('full_name, phone').eq('id', user.id).single();
         if (profile?.full_name) setFullName(profile.full_name);
         if (profile?.phone) setPhone(profile.phone.replace(/\D/g, '').slice(0, 10));
+
         const { data: addr } = await supabase
           .from('user_addresses').select('address')
           .eq('user_id', user.id).eq('is_default', true).maybeSingle();
@@ -375,6 +392,22 @@ export default function CartScreen() {
 
     try {
       const authenticatedUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
+
+      // ⚡ ¡CORREGIDO! Cambiamos .update() por .upsert() para asegurar la creación de la fila.
+      // Pasamos también el full_name obligatorio por si es el primer registro del cliente.
+      if (authenticatedUserId && phone.trim()) {
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .upsert({ 
+            id: authenticatedUserId, 
+            phone: phone.trim(),
+            full_name: fullName.trim()
+          }, { onConflict: 'id' });
+
+        if (profileUpdateError) {
+          console.error('❌ Error al persistir el celular en profiles:', profileUpdateError.message);
+        }
+      }
 
       const orderItems = items.map((item) => ({
         variant_id: item.variant_id,
@@ -638,7 +671,7 @@ export default function CartScreen() {
 
             {shipping > 0 && (
               <Text style={styles.freeShippingHint}>
-                🚚 Agrega {formatCOP(FREE_SHIPPING_THRESHOLD - subtotal)} más para envío gratis
+                🚚 Agrega {formatCOP(freeShippingThreshold - subtotal)} más para envío gratis
               </Text>
             )}
           </View>

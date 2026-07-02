@@ -20,10 +20,10 @@ import { useCartStore } from '../../store/useCartStore';
 
 type ProductBadge = 'TOP' | 'NUEVO';
 
-interface OccasionOption {
+interface Category {
   id: string;
-  label: string;
-  emoji: string;
+  name: string;
+  slug: string;
 }
 
 interface DBProductVariant {
@@ -76,15 +76,6 @@ interface Product {
   categoryName?: string | null;
   tags: string[];
 }
-
-// ─── Datos mock B2C ──────────────────────────────────────────────────────────
-
-const OCCASIONS: OccasionOption[] = [
-  { id: 'cumple', label: 'Cumple', emoji: '🎂' },
-  { id: 'empresa', label: 'Empresa', emoji: '💼' },
-  { id: 'amor', label: 'Amor', emoji: '❤️' },
-  { id: 'grado', label: 'Grado', emoji: '🎓' },
-];
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
 
@@ -158,23 +149,55 @@ function HomeHeader({
   );
 }
 
-function OccasionSection() {
+function CategorySection({
+  categories,
+  selectedCategoryId,
+  onSelectCategory,
+}: {
+  categories: Category[];
+  selectedCategoryId: string | null;
+  onSelectCategory: (id: string | null) => void;
+}) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Para la ocasión</Text>
+      <Text style={styles.sectionTitle}>Nuestras Especialidades</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.occasionScroll}>
-        {OCCASIONS.map((occasion) => (
-          <TouchableOpacity
-            key={occasion.id}
-            style={styles.occasionChip}
-            activeOpacity={0.75}>
-            <Text style={styles.occasionEmoji}>{occasion.emoji}</Text>
-            <Text style={styles.occasionLabel}>{occasion.label}</Text>
-          </TouchableOpacity>
-        ))}
+
+        {/* Chip dinámico para 'Todos' los productos */}
+        <TouchableOpacity
+          style={[styles.occasionChip, !selectedCategoryId && styles.occasionChipSelected]}
+          activeOpacity={0.75}
+          onPress={() => onSelectCategory(null)}>
+          <Text style={styles.occasionEmoji}>✨</Text>
+          <Text style={[styles.occasionLabel, !selectedCategoryId && styles.occasionLabelSelected]}>
+            Todo
+          </Text>
+        </TouchableOpacity>
+
+        {categories.map((cat) => {
+          const isSelected = selectedCategoryId === cat.id;
+          // Asignar un emoji por defecto o dinámico basado en el slug
+          let emoji = '🍰';
+          if (cat.slug.includes('cupcake')) emoji = '🧁';
+          if (cat.slug.includes('trufa') || cat.slug.includes('chocolate')) emoji = '🍫';
+          if (cat.slug.includes('galleta')) emoji = '🍪';
+
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.occasionChip, isSelected && styles.occasionChipSelected]}
+              activeOpacity={0.75}
+              onPress={() => onSelectCategory(isSelected ? null : cat.id)}>
+              <Text style={styles.occasionEmoji}>{emoji}</Text>
+              <Text style={[styles.occasionLabel, isSelected && styles.occasionLabelSelected]}>
+                {cat.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -270,6 +293,8 @@ export default function HomeScreen() {
   const addItem = useCartStore((state) => state.addItem);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -316,6 +341,24 @@ export default function HomeScreen() {
     });
 
     return () => authListener.subscription.unsubscribe();
+  }, []);
+
+  // ── Carga de categorías raíz (parent_id NULL) para la fila de Especialidades ──
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const { data } = await supabase
+          .from('categories')
+          .select('id, name, slug')
+          .eq('is_active', true)
+          .is('parent_id', null) // 🛡️ Regla UX: Solo categorías raíz
+          .order('sort_order', { ascending: true });
+        if (data) setCategories(data);
+      } catch (err) {
+        console.error('Error cargando categorías:', err);
+      }
+    }
+    fetchCategories();
   }, []);
 
   // ── Carga de productos desde Supabase ────────────────────────────────────────
@@ -418,9 +461,16 @@ export default function HomeScreen() {
     fetchProducts();
   }, []);
 
-  // ── Búsqueda reactiva con tolerancia a errores ortográficos (ej: "Thorta" -> "torta") ──
+  // ── Búsqueda reactiva + filtro por especialidad seleccionada ─────────────────
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return products;
+    // Primero filtramos por categoría de base de datos si hay una seleccionada
+    let baseList = products;
+    if (selectedCategoryId) {
+      const currentCat = categories.find((c) => c.id === selectedCategoryId);
+      baseList = products.filter((p) => p.categoryName === currentCat?.name);
+    }
+
+    if (!searchQuery.trim()) return baseList;
 
     // Normaliza texto: minúsculas, sin tildes y sin 'h' muda
     const normalize = (str: string) =>
@@ -431,7 +481,7 @@ export default function HomeScreen() {
         .replace(/h/g, ''); // Remueve la 'h' para tolerar "Thorta" o "Tortha" -> "torta"
 
     const target = normalize(searchQuery);
-    return products.filter((product) => {
+    return baseList.filter((product) => {
       const haystack = [
         product.name,
         product.sizeLabel,
@@ -443,7 +493,7 @@ export default function HomeScreen() {
 
       return haystack.includes(target);
     });
-  }, [products, searchQuery]);
+  }, [products, searchQuery, selectedCategoryId, categories]);
 
   const handleAddProduct = (product: Product) => {
     addItem({
@@ -474,7 +524,11 @@ export default function HomeScreen() {
       ]}
       showsVerticalScrollIndicator={false}>
       <HomeHeader profileName={profileName} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-      <OccasionSection />
+      <CategorySection
+        categories={categories}
+        selectedCategoryId={selectedCategoryId}
+        onSelectCategory={setSelectedCategoryId}
+      />
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -630,6 +684,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginRight: 0,
   },
+  occasionChipSelected: {
+    borderColor: BRAND.orange,
+    backgroundColor: '#FFF5EE',
+  },
   occasionEmoji: {
     fontSize: 18,
     marginRight: 8,
@@ -638,6 +696,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: BRAND.textMuted,
+  },
+  occasionLabelSelected: {
+    color: BRAND.orange,
+    fontWeight: '700',
   },
 
   // Productos

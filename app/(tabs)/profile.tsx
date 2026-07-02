@@ -48,6 +48,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import { useCartStore } from '@/store/useCartStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MARCA — Tokens visuales de LaTortaria
@@ -66,6 +67,12 @@ const BRAND = {
   statusPaidBg: '#D8F3DC',
   statusPending: '#B5451B',
   statusPendingBg: '#FDEBD0',
+  statusPreparing: '#D47A1F',
+  statusPreparingBg: '#FCECDD',
+  statusShipped: '#6C5CE7',
+  statusShippedBg: '#EFEFFA',
+  statusDelivered: '#104F55',
+  statusDeliveredBg: '#E0F2F1',
   statusCancelled: '#7B2D00',
   statusCancelledBg: '#FADBD8',
   fontDisplay: Platform.select({ ios: 'Georgia', android: 'serif' }) as string,
@@ -87,11 +94,14 @@ interface ProfileData {
 
 interface OrderItem {
   id: string;
+  variant_id: string | null;
   product_name_snapshot: string | null;
   variant_name_snapshot: string | null;
   quantity: number;
   price_at_purchase: number;
   image_snapshot: string | null;
+  // Join relacional hacia product_variants para recuperar el UUID real del producto
+  product_variants?: { product_id: string } | null;
 }
 
 interface Order {
@@ -154,11 +164,73 @@ function formatDate(dateStr: string): string {
 
 function getStatusLabel(status: string): { label: string; color: string; bg: string } {
   switch (status) {
-    case 'paid': return { label: 'Pagado', color: BRAND.statusPaid, bg: BRAND.statusPaidBg };
     case 'pending_payment': return { label: 'Pago pendiente', color: BRAND.statusPending, bg: BRAND.statusPendingBg };
+    case 'paid': return { label: 'Pagado (Confirmado)', color: BRAND.statusPaid, bg: BRAND.statusPaidBg };
+    case 'preparing': return { label: 'En producción 🎂', color: BRAND.statusPreparing, bg: BRAND.statusPreparingBg };
+    case 'shipped': return { label: 'En camino 🛵', color: BRAND.statusShipped, bg: BRAND.statusShippedBg };
+    case 'delivered': return { label: 'Entregado ✓', color: BRAND.statusDelivered, bg: BRAND.statusDeliveredBg };
     case 'cancelled': return { label: 'Cancelado', color: BRAND.statusCancelled, bg: BRAND.statusCancelledBg };
     default: return { label: status, color: BRAND.inkMid, bg: BRAND.divider };
   }
+}
+
+// Mapa de progreso del stepper: qué pasos están completos (check) y cuál está
+// "en curso" (iluminado, sin check todavía) para cada estado del ENUM.
+// Índices de paso: 0=Pago · 1=En Cocina · 2=En Camino · 3=Entregado
+const ORDER_STEP_PROGRESS: Record<string, { doneUpTo: number; currentIndex: number | null }> = {
+  pending_payment: { doneUpTo: -1, currentIndex: 0 },
+  paid: { doneUpTo: 0, currentIndex: null },
+  preparing: { doneUpTo: 0, currentIndex: 1 },
+  shipped: { doneUpTo: 1, currentIndex: 2 },
+  delivered: { doneUpTo: 3, currentIndex: null },
+};
+
+const ORDER_STEP_LABELS = ['Pago', 'En Cocina', 'En Camino', 'Entregado'];
+
+function OrderStepper({ status }: { status: string }) {
+  // Regla UX: en pedidos cancelados el stepper no aporta información útil
+  // y puede confundir al cliente sobre el estado real de su pastel.
+  const progress = status === 'cancelled' ? null : ORDER_STEP_PROGRESS[status];
+  if (!progress) return null;
+
+  const { doneUpTo, currentIndex } = progress;
+
+  return (
+    <View style={s.stepperContainer}>
+      <View style={s.stepperTrackRow}>
+        {ORDER_STEP_LABELS.map((_, i) => {
+          const isDone = i <= doneUpTo;
+          const isCurrent = i === currentIndex;
+          const isActive = isDone || isCurrent;
+          const isLast = i === ORDER_STEP_LABELS.length - 1;
+          return (
+            <React.Fragment key={i}>
+              <View style={[s.stepperDot, isActive && s.stepperDotActive]}>
+                {isDone && <Feather name="check" size={9} color={BRAND.white} />}
+              </View>
+              {!isLast && (
+                <View style={[s.stepperConnector, i <= doneUpTo && s.stepperConnectorActive]} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </View>
+      <View style={s.stepperLabelsRow}>
+        {ORDER_STEP_LABELS.map((label, i) => {
+          const isActive = i <= doneUpTo || i === currentIndex;
+          return (
+            <Text
+              key={label}
+              style={[s.stepperLabel, isActive && s.stepperLabelActive]}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -213,11 +285,15 @@ export default function ProfileScreen() {
           id, status, total_amount, delivery_date, created_at,
           order_items (
             id,
+            variant_id,
             product_name_snapshot,
             variant_name_snapshot,
             quantity,
             price_at_purchase,
-            image_snapshot
+            image_snapshot,
+            product_variants (
+              product_id
+            )
           )
         `)
         .eq('user_id', userId)
@@ -544,7 +620,7 @@ export default function ProfileScreen() {
                 // Esto vacía el SecureStore, activa el evento SIGNED_OUT en el listener,
                 // y transforma la interfaz al estado de Invitado de forma instantánea.
                 await supabase.auth.signOut();
-                
+
                 Alert.alert('Cuenta eliminada', 'Tu información ha sido borrada con éxito.');
               }
             } finally {
@@ -554,6 +630,71 @@ export default function ProfileScreen() {
         },
       ],
     );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CANCELAR PEDIDO
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleCancelOrder = (orderId: string) => {
+    Alert.alert(
+      'Cancelar pedido',
+      '¿Deseas cancelar este pedido definitivamente? Esta acción no se puede deshacer.',
+      [
+        { text: 'No, volver', style: 'cancel' },
+        {
+          text: 'Sí, cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            // RPC seguro: la función de BD valida que el pedido pertenece
+            // al usuario en sesión, respetando RLS sin necesidad de UPDATE directo.
+            const { error } = await supabase.rpc('cancel_own_order', { order_id: orderId });
+            if (error) {
+              Alert.alert('Error', 'No se pudo cancelar el pedido. Intenta de nuevo.');
+            } else {
+              if (user) await loadUserData(user.id);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RETOMAR PEDIDO — Vuelca los ítems al carrito y redirige al checkout
+  // ─────────────────────────────────────────────────────────────────────────
+  const clearCart = useCartStore((s) => s.clearCart);
+  const addItem = useCartStore((s) => s.addItem);
+  const router = useRouter();
+
+  const handleResumeOrder = async (order: Order) => {
+    // 1. Vaciar carrito actual
+    clearCart();
+
+    // 2. Inyectar cada ítem del pedido original en el store
+    for (const item of order.order_items) {
+      if (!item.variant_id) continue; // seguridad: no añadir ítems sin variant_id
+      // Extrae el product_id real del join relacional; cae en '' si no hay datos
+      const realProductId = item.product_variants?.product_id ?? '';
+      addItem({
+        product_id: realProductId,
+        variant_id: item.variant_id,
+        name: item.product_name_snapshot ?? 'Producto',
+        size_label: item.variant_name_snapshot ?? '',
+        base_price: item.price_at_purchase,
+        quantity: item.quantity,
+        add_ons: [],
+        image_url: item.image_snapshot ?? undefined,
+      });
+    }
+
+    // 3. Marcar el pedido viejo como cancelado via RPC seguro (respeta RLS)
+    await supabase.rpc('cancel_own_order', { order_id: order.id });
+
+    // 4. Refrescar la lista de pedidos
+    if (user) await loadUserData(user.id);
+
+    // 5. Redirigir al carrito para que el usuario valide fechas, horas y stock
+    router.push('/(tabs)/cart');
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -754,7 +895,9 @@ export default function ProfileScreen() {
               <Text style={s.emptyBody}>¡Tu primer pastel te espera!</Text>
             </View>
           ) : (
-            orders.map((order) => {
+            // Regla de negocio: pedidos cancelados desaparecen de la vista del
+            // cliente pero se conservan en BD para auditoría del administrador.
+            (orders.filter((o) => o.status !== 'cancelled')).map((order) => {
               const { label, color, bg } = getStatusLabel(order.status);
               const expanded = expandedOrderId === order.id;
               return (
@@ -788,6 +931,7 @@ export default function ProfileScreen() {
 
                   {expanded && order.order_items.length > 0 && (
                     <View style={s.accordion}>
+                      <OrderStepper status={order.status} />
                       <View style={s.accordionDivider} />
                       <Text style={s.accordionTitle}>Detalle del pedido</Text>
                       {order.order_items.map((item) => (
@@ -813,6 +957,28 @@ export default function ProfileScreen() {
                         <Text style={s.accordionTotalLabel}>Total</Text>
                         <Text style={s.accordionTotalAmount}>{formatCOP(order.total_amount)}</Text>
                       </View>
+
+                      {/* ── Acciones de pedido pendiente ─────────────────── */}
+                      {order.status === 'pending_payment' && (
+                        <View style={s.orderActionsRow}>
+                          <TouchableOpacity
+                            style={s.orderActionCancel}
+                            onPress={() => handleCancelOrder(order.id)}
+                            activeOpacity={0.75}
+                          >
+                            <Feather name="x-circle" size={14} color={BRAND.statusCancelled} />
+                            <Text style={s.orderActionCancelText}>Cancelar pedido</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={s.orderActionResume}
+                            onPress={() => handleResumeOrder(order)}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name="shopping-cart" size={14} color={BRAND.white} />
+                            <Text style={s.orderActionResumeText}>Retomar pedido</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   )}
                 </TouchableOpacity>
@@ -1048,6 +1214,25 @@ const s = StyleSheet.create({
   // Acordeón
   accordion: { marginTop: 12 },
   accordionDivider: { height: 1, backgroundColor: BRAND.divider, marginBottom: 12 },
+
+  // Micro-stepper de seguimiento del pedido
+  stepperContainer: { marginBottom: 14 },
+  stepperTrackRow: { flexDirection: 'row', alignItems: 'center' },
+  stepperDot: {
+    width: 16, height: 16, borderRadius: 8,
+    borderWidth: 1.5, borderColor: BRAND.divider,
+    backgroundColor: BRAND.white,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  stepperDotActive: { backgroundColor: BRAND.rose, borderColor: BRAND.rose },
+  stepperConnector: { flex: 1, height: 2, backgroundColor: BRAND.divider, marginHorizontal: 2 },
+  stepperConnectorActive: { backgroundColor: BRAND.rose },
+  stepperLabelsRow: { flexDirection: 'row', marginTop: 4 },
+  stepperLabel: {
+    flex: 1, fontFamily: BRAND.fontBody, fontSize: 10, color: BRAND.inkLight,
+    textAlign: 'center', fontWeight: '500',
+  },
+  stepperLabelActive: { color: BRAND.rose, fontWeight: '700' },
   accordionTitle: { fontFamily: BRAND.fontBody, fontSize: 12, fontWeight: '700', color: BRAND.inkMid, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   accordionItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 10 },
   itemImage: { width: 48, height: 48, borderRadius: BRAND.radiusSm, backgroundColor: BRAND.divider },
@@ -1060,6 +1245,55 @@ const s = StyleSheet.create({
   accordionTotal: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: BRAND.divider, paddingTop: 10, marginTop: 4 },
   accordionTotalLabel: { fontFamily: BRAND.fontBody, fontSize: 13, color: BRAND.inkMid, fontWeight: '600' },
   accordionTotalAmount: { fontFamily: BRAND.fontBody, fontSize: 14, color: BRAND.ink, fontWeight: '700' },
+
+  // ── Botones de acción para pedidos 'pending_payment' ─────────────────────
+  orderActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: BRAND.divider,
+  },
+  orderActionCancel: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: BRAND.radius,
+    borderWidth: 1.5,
+    borderColor: BRAND.statusCancelled,
+    backgroundColor: BRAND.statusCancelledBg,
+  },
+  orderActionCancelText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 13,
+    fontWeight: '600',
+    color: BRAND.statusCancelled,
+  },
+  orderActionResume: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: BRAND.radius,
+    backgroundColor: BRAND.rose,
+    shadowColor: BRAND.rose,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  orderActionResumeText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND.white,
+  },
 
   // Favoritos
   favGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

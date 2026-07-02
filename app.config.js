@@ -27,9 +27,7 @@ module.exports = {
     android: {
       adaptiveIcon: {
         backgroundColor: "#FAF7F2",
-        foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png",
-        monochromeImage: "./assets/images/android-icon-monochrome.png"
+        foregroundImage: "./assets/images/android-icon-foreground.png"
       },
       predictiveBackGestureEnabled: false,
       package: "com.jairodiazv0.LaTortariaMobile",

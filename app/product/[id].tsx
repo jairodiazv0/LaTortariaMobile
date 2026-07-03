@@ -1,13 +1,17 @@
 import { Feather } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
+  Easing,
   Image,
+  Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
@@ -99,6 +104,8 @@ export default function ProductDetailScreen() {
   const addItem = useCartStore((state) => state.addItem);
 
   // Estados de datos
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [welcomeCoupon, setWelcomeCoupon] = useState<{ code: string; benefit: number; min_order_amount: number } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [product, setProduct] = useState<DBProduct | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
@@ -111,12 +118,34 @@ export default function ProductDetailScreen() {
   const [customText, setCustomText] = useState<string>('');
   const [cookingInstructions, setCookingInstructions] = useState<string>('');
   const [selectedAddOns, setSelectedAddOns] = useState<AddOnOption[]>([]);
-  
+
   // Estado UI
   const [isCustomizationCollapsed, setIsCustomizationCollapsed] = useState<boolean>(true);
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const imageScrollRef = useRef<ScrollView>(null);
+
+
+  useEffect(() => {
+    const fetchWelcomeCoupon = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('coupons')
+          .select('code, discount_value, min_order_amount, is_active')
+          .eq('code', 'WELCOME_2026')
+          .eq('is_active', true)
+          .single();
+        if (!error && data) {
+          setWelcomeCoupon({
+            code: data.code,
+            benefit: Number(data.discount_value),
+            min_order_amount: Number(data.min_order_amount),
+          });
+        }
+      } catch (e) { }
+    };
+    fetchWelcomeCoupon();
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -310,6 +339,7 @@ export default function ProductDetailScreen() {
     }
   };
 
+
   const handleToggleAddOn = (addon: AddOnOption) => {
     setSelectedAddOns((prev) =>
       prev.some((item) => item.id === addon.id)
@@ -321,8 +351,8 @@ export default function ProductDetailScreen() {
   const handleAddToCart = () => {
     if (!product || !selectedVariant) return;
 
-    const coverImage = product.product_media.find(m => m.type === 'image' && m.is_cover) 
-                    || product.product_media.find(m => m.type === 'image');
+    const coverImage = product.product_media.find(m => m.type === 'image' && m.is_cover)
+      || product.product_media.find(m => m.type === 'image');
 
     addItem({
       product_id: product.id,
@@ -376,19 +406,20 @@ export default function ProductDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen 
-        options={{ 
-          title: product.name, 
+      <Stack.Screen
+        options={{
+          title: product.name,
           headerShown: true,
           headerStyle: { backgroundColor: '#FAF7F2' },
           headerTintColor: '#2C2018',
           headerTitleStyle: { fontWeight: '700', fontSize: 16 }
-        }} 
+        }}
       />
       <ScrollView
+
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}>
-        
+
         {/* Cabecera / Galería de fotos */}
         <View style={styles.galleryWrapper}>
           {productImages.length > 0 ? (
@@ -456,9 +487,9 @@ export default function ProductDetailScreen() {
         </View>
 
         {productImages.length > 1 && (
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 8, paddingHorizontal: 20, marginVertical: 12 }}
           >
             {productImages.map((img, index) => {
@@ -664,13 +695,35 @@ export default function ProductDetailScreen() {
               </ScrollView>
             </View>
           )}
+
+          {/* ── Entrada a la Ruleta de la Dulzura (invitados) ── */}
+          {!currentUser && welcomeCoupon && (
+            <TouchableOpacity
+              style={styles.wheelEntryBanner}
+              activeOpacity={0.88}
+              onPress={() => router.push('/(tabs)')}>
+              <View style={styles.wheelEntryLeft}>
+                <Text style={styles.wheelEntryEmoji}>🎡</Text>
+              </View>
+              <View style={styles.wheelEntryCenter}>
+                <Text style={styles.wheelEntryTitle}>¡Gira la Ruleta de la Dulzura!</Text>
+                <Text style={styles.wheelEntrySubtitle}>
+                  Gana hasta {formatCOP(welcomeCoupon.benefit)} en tu primer antojo 🎁
+                </Text>
+              </View>
+              <View style={styles.wheelEntryRight}>
+                <Feather name="chevron-right" size={22} color="#FF6B00" />
+              </View>
+            </TouchableOpacity>
+          )}
+
         </View>
       </ScrollView>
 
       {/* Barra Inferior Fija de Compra */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={styles.bottomBarContent}>
-          
+
           {/* Selector de cantidad */}
           <View style={styles.quantitySelector}>
             <TouchableOpacity
@@ -699,33 +752,54 @@ export default function ProductDetailScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
     </View>
   );
 }
 
-// ─── Estilos ─────────────────────────────────────────────────────────────────
+
+// ─── Paleta de marca (identidad LaTortaria — idéntica a profile.tsx) ──────────
 
 const BRAND = {
-  orange: '#FF6B00',
-  background: '#F5F7FA',
-  surface: '#FFFFFF',
-  textPrimary: '#1A1A1A',
-  textSecondary: '#8E8E93',
-  textMuted: '#3A3A3C',
-  border: '#E5E5EA',
-  imagePlaceholder: '#EDEEF2',
+  // Colores base
+  cream:          '#FAF7F2',
+  rose:           '#C8745A',
+  roseDark:       '#A85A42',
+  roseLight:      '#F5E6DF',
+  ink:            '#2C2018',
+  inkMid:         '#6B5744',
+  inkLight:       '#A8917E',
+  divider:        '#EDE4D8',
+  white:          '#FFFFFF',
+  // Estados
+  statusPaid:     '#2D6A4F',
+  statusPaidBg:   '#D8F3DC',
+  red:            '#B5451B',
+  redBg:          '#FDEBD0',
+  // UI legacy
+  orange:         '#C8745A',   // alias → rose para consistencia
+  background:     '#FAF7F2',
+  surface:        '#FFFFFF',
+  textPrimary:    '#2C2018',
+  textSecondary:  '#A8917E',
+  textMuted:      '#6B5744',
+  border:         '#EDE4D8',
+  imagePlaceholder: '#F5E6DF',
+  // Spacing
+  radius:         14,
+  radiusSm:       8,
 } as const;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BRAND.background,
+    backgroundColor: BRAND.cream,
   },
   loadingCenter: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: BRAND.background,
+    backgroundColor: BRAND.cream,
   },
   loadingText: {
     marginTop: 12,
@@ -738,7 +812,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: BRAND.background,
+    backgroundColor: BRAND.cream,
   },
   errorTitle: {
     fontSize: 20,
@@ -754,13 +828,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   backButtonAction: {
-    backgroundColor: BRAND.orange,
+    backgroundColor: BRAND.rose,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: BRAND.radius,
   },
   backButtonActionText: {
-    color: '#FFFFFF',
+    color: BRAND.white,
     fontWeight: '600',
     fontSize: 15,
   },
@@ -781,7 +855,7 @@ const styles = StyleSheet.create({
     height: 320,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BRAND.imagePlaceholder,
+    backgroundColor: BRAND.roseLight,
   },
   fallbackEmoji: {
     fontSize: 80,
@@ -801,7 +875,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   paginationDotActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: BRAND.white,
     width: 14,
   },
   floatingHeader: {
@@ -842,53 +916,53 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   featuredBadge: {
-    backgroundColor: '#FFF2E6',
-    borderRadius: 8,
+    backgroundColor: BRAND.roseLight,
+    borderRadius: BRAND.radiusSm,
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: '#FFE0C2',
+    borderColor: '#E8C4B0',
   },
   featuredBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: BRAND.orange,
+    color: BRAND.rose,
     letterSpacing: 0.5,
   },
   ratingBadge: {
-    backgroundColor: 'rgba(26, 26, 26, 0.05)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(44,32,24,0.06)',
+    borderRadius: BRAND.radiusSm,
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
   ratingText: {
     fontSize: 12,
     fontWeight: '600',
-    color: BRAND.textMuted,
+    color: BRAND.inkMid,
   },
   prepBadge: {
-    backgroundColor: '#EEFBF3',
-    borderRadius: 8,
+    backgroundColor: BRAND.statusPaidBg,
+    borderRadius: BRAND.radiusSm,
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: '#D3F5E1',
+    borderColor: '#B7DEC5',
   },
   prepBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#1E7E34',
+    color: BRAND.statusPaid,
   },
   productName: {
     fontSize: 24,
     fontWeight: '800',
-    color: BRAND.textPrimary,
+    color: BRAND.ink,
     lineHeight: 30,
     marginBottom: 10,
   },
   productDescription: {
     fontSize: 15,
-    color: BRAND.textMuted,
+    color: BRAND.inkMid,
     lineHeight: 22,
     marginBottom: 24,
   },
@@ -900,7 +974,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: BRAND.textPrimary,
+    color: BRAND.ink,
     marginBottom: 12,
   },
   variantsScroll: {
@@ -908,42 +982,42 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
   variantChip: {
-    backgroundColor: BRAND.surface,
-    borderRadius: 14,
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radius,
     borderWidth: 1,
-    borderColor: BRAND.border,
+    borderColor: BRAND.divider,
     paddingVertical: 10,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
   variantChipSelected: {
-    borderColor: BRAND.orange,
-    backgroundColor: '#FFF5EE',
+    borderColor: BRAND.rose,
+    backgroundColor: BRAND.roseLight,
   },
   variantChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: BRAND.textMuted,
+    color: BRAND.inkMid,
     marginBottom: 2,
   },
   variantChipTextSelected: {
-    color: BRAND.orange,
+    color: BRAND.rose,
   },
   variantChipPrice: {
     fontSize: 13,
-    color: BRAND.textSecondary,
+    color: BRAND.inkLight,
   },
   variantChipPriceSelected: {
-    color: BRAND.orange,
+    color: BRAND.rose,
     fontWeight: '700',
   },
 
   // Acordeón de Personalización
   accordionContainer: {
-    backgroundColor: BRAND.surface,
-    borderRadius: 16,
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radius,
     borderWidth: 1,
-    borderColor: BRAND.border,
+    borderColor: BRAND.divider,
     marginBottom: 24,
     overflow: 'hidden',
   },
@@ -963,29 +1037,29 @@ const styles = StyleSheet.create({
   accordionHeaderTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: BRAND.textPrimary,
+    color: BRAND.ink,
   },
   accordionBody: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: BRAND.border,
-    backgroundColor: '#FAFBFD',
+    borderTopColor: BRAND.divider,
+    backgroundColor: BRAND.cream,
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: BRAND.textMuted,
+    color: BRAND.inkMid,
     marginBottom: 6,
   },
   textInput: {
-    backgroundColor: BRAND.surface,
-    borderRadius: 10,
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radiusSm,
     borderWidth: 1,
-    borderColor: BRAND.border,
+    borderColor: BRAND.divider,
     paddingHorizontal: 12,
     height: 44,
     fontSize: 14,
-    color: BRAND.textPrimary,
+    color: BRAND.ink,
     marginBottom: 4,
   },
   textArea: {
@@ -996,7 +1070,7 @@ const styles = StyleSheet.create({
   },
   inputHelper: {
     fontSize: 11,
-    color: BRAND.textSecondary,
+    color: BRAND.inkLight,
     marginBottom: 16,
   },
 
@@ -1007,10 +1081,10 @@ const styles = StyleSheet.create({
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: BRAND.surface,
-    borderRadius: 14,
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radius,
     borderWidth: 1,
-    borderColor: BRAND.border,
+    borderColor: BRAND.divider,
     padding: 14,
     marginBottom: 10,
   },
@@ -1024,12 +1098,12 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: BRAND.textMuted,
+    color: BRAND.inkMid,
   },
   checkboxPrice: {
     fontSize: 14,
     fontWeight: '700',
-    color: BRAND.textPrimary,
+    color: BRAND.ink,
   },
 
   // Productos Relacionados
@@ -1042,16 +1116,16 @@ const styles = StyleSheet.create({
   },
   relatedCard: {
     width: 140,
-    backgroundColor: BRAND.surface,
-    borderRadius: 14,
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radius,
     borderWidth: 1,
-    borderColor: BRAND.border,
+    borderColor: BRAND.divider,
     overflow: 'hidden',
   },
   relatedImageWrapper: {
     width: '100%',
     height: 100,
-    backgroundColor: BRAND.imagePlaceholder,
+    backgroundColor: BRAND.roseLight,
   },
   relatedImage: {
     width: '100%',
@@ -1072,13 +1146,13 @@ const styles = StyleSheet.create({
   relatedName: {
     fontSize: 13,
     fontWeight: '700',
-    color: BRAND.textPrimary,
+    color: BRAND.ink,
     marginBottom: 2,
   },
   relatedPrice: {
     fontSize: 13,
     fontWeight: '600',
-    color: BRAND.orange,
+    color: BRAND.rose,
   },
 
   // Barra Inferior de Compra
@@ -1087,14 +1161,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: BRAND.surface,
+    backgroundColor: BRAND.white,
     borderTopWidth: 1,
-    borderTopColor: BRAND.border,
+    borderTopColor: BRAND.divider,
     paddingTop: 16,
     paddingHorizontal: 20,
-    shadowColor: '#000000',
+    shadowColor: BRAND.ink,
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -1106,11 +1180,11 @@ const styles = StyleSheet.create({
   quantitySelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: BRAND.background,
-    borderRadius: 14,
+    backgroundColor: BRAND.cream,
+    borderRadius: BRAND.radius,
     height: 50,
     borderWidth: 1,
-    borderColor: BRAND.border,
+    borderColor: BRAND.divider,
     paddingHorizontal: 4,
   },
   qtyButton: {
@@ -1122,14 +1196,14 @@ const styles = StyleSheet.create({
   qtyText: {
     fontSize: 16,
     fontWeight: '700',
-    color: BRAND.textPrimary,
+    color: BRAND.ink,
     minWidth: 24,
     textAlign: 'center',
   },
   buyButton: {
     flex: 1,
-    backgroundColor: BRAND.orange,
-    borderRadius: 14,
+    backgroundColor: BRAND.rose,
+    borderRadius: BRAND.radius,
     height: 50,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1137,19 +1211,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   buyButtonText: {
-    color: '#FFFFFF',
+    color: BRAND.white,
     fontSize: 16,
     fontWeight: '700',
   },
   buyButtonDivider: {
     width: 1,
     height: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255,255,255,0.3)',
     marginHorizontal: 12,
   },
   buyButtonPrice: {
-    color: '#FFFFFF',
+    color: BRAND.white,
     fontSize: 16,
     fontWeight: '800',
   },
+
+  // ── Entrada a la Ruleta ───────────────────────────────────────────────────
+  wheelEntryBanner: {
+    marginTop: 24,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BRAND.roseLight,
+    borderRadius: BRAND.radius + 4,
+    borderWidth: 1.5,
+    borderColor: '#E8C4B0',
+    padding: 16,
+    shadowColor: BRAND.rose,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  wheelEntryLeft: {
+    marginRight: 14,
+  },
+  wheelEntryEmoji: {
+    fontSize: 36,
+  },
+  wheelEntryCenter: {
+    flex: 1,
+  },
+  wheelEntryTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: BRAND.ink,
+    marginBottom: 3,
+  },
+  wheelEntrySubtitle: {
+    fontSize: 12,
+    color: BRAND.inkMid,
+    lineHeight: 17,
+  },
+  wheelEntryRight: {
+    marginLeft: 10,
+  },
+
 });

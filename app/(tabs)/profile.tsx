@@ -26,7 +26,7 @@
  *   - role ENUM: nunca se envía desde el cliente.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Modal,
+  Dimensions,
+  Share,
+  Clipboard,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -86,6 +91,12 @@ const BRAND = {
 // ─────────────────────────────────────────────────────────────────────────────
 type AuthMode = 'login' | 'register';
 type ActiveSection = 'orders' | 'favorites' | 'profile';
+
+interface WelcomeCoupon {
+  code: string;
+  benefit: number;          // monto del descuento en COP
+  min_order_amount: number; // compra mínima en COP
+}
 
 interface ProfileData {
   full_name: string;
@@ -236,6 +247,16 @@ function OrderStepper({ status }: { status: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFETI — paleta de colores pastel para las partículas
+// ─────────────────────────────────────────────────────────────────────────────
+const CONFETTI_COLORS = [
+  '#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF',
+  '#E8BAFF', '#FFB3E6', '#C8F7C5', '#F7D6C8', '#C8E4F7',
+];
+const CONFETTI_COUNT = 18;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
 
@@ -265,6 +286,32 @@ export default function ProfileScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+
+  // ── Cupón de bienvenida — carga dinámica desde Supabase ────────────────────
+  const [welcomeCoupon, setWelcomeCoupon] = useState<WelcomeCoupon | null>(null);
+
+  // ── Celebración post-registro ──────────────────────────────────────────────
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  // ── Refs de animación para el confeti ─────────────────────────────────────
+  // Cada partícula tiene: translateY, translateX, opacity, rotate, scale
+  const confettiAnims = useRef<{
+    y: Animated.Value;
+    x: Animated.Value;
+    opacity: Animated.Value;
+    rotate: Animated.Value;
+    scale: Animated.Value;
+  }[]>(
+    Array.from({ length: CONFETTI_COUNT }, () => ({
+      y: new Animated.Value(-60),
+      x: new Animated.Value(0),
+      opacity: new Animated.Value(0),
+      rotate: new Animated.Value(0),
+      scale: new Animated.Value(0.6),
+    }))
+  ).current;
 
   // ─────────────────────────────────────────────────────────────────────────
   // CARGA DE DATOS
@@ -364,6 +411,86 @@ export default function ProfileScreen() {
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // CARGA DINÁMICA DEL CUPÓN DE BIENVENIDA
+  // Regla: nunca hardcodear montos — todo viene del estado welcomeCoupon
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchWelcomeCoupon = async () => {
+      try {
+        const now = new Date().toISOString();
+        const { data, error } = await supabase
+          .from('coupons')
+          .select('code, discount_value, min_order_amount, valid_until, is_active')
+          .eq('code', 'WELCOME_2026')
+          .eq('is_active', true)
+          .single();
+
+        if (error || !data) return;
+
+        // Validar vigencia en cliente como segunda capa de seguridad
+        if (data.valid_until && new Date(data.valid_until) < new Date(now)) return;
+
+        setWelcomeCoupon({
+          code: data.code,
+          benefit: Number(data.discount_value),
+          min_order_amount: Number(data.min_order_amount),
+        });
+      } catch {
+        // Silencioso: el banner sencillamente no se muestra si falla
+      }
+    };
+    fetchWelcomeCoupon();
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ANIMACIÓN DE CONFETI — dispara partículas cuando showCelebration = true
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!showCelebration) return;
+
+    const animations = confettiAnims.map((anim, i) => {
+      const delay = i * 80;
+      const startX = (Math.random() - 0.5) * SCREEN_W * 0.9;
+      const endX = startX + (Math.random() - 0.5) * 120;
+      const duration = 2200 + Math.random() * 1200;
+
+      // Resetear posición inicial
+      anim.y.setValue(-60);
+      anim.x.setValue(startX);
+      anim.opacity.setValue(0);
+      anim.rotate.setValue(0);
+      anim.scale.setValue(0.5 + Math.random() * 0.5);
+
+      return Animated.sequence([
+        Animated.delay(delay),
+        Animated.parallel([
+          Animated.timing(anim.y, {
+            toValue: SCREEN_H * 0.85,
+            duration,
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim.x, {
+            toValue: endX,
+            duration,
+            useNativeDriver: true,
+          }),
+          Animated.sequence([
+            Animated.timing(anim.opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.timing(anim.opacity, { toValue: 0, duration: 400, delay: duration - 700, useNativeDriver: true }),
+          ]),
+          Animated.timing(anim.rotate, {
+            toValue: Math.random() > 0.5 ? 6 : -6,
+            duration,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]);
+    });
+
+    Animated.stagger(60, animations).start();
+  }, [showCelebration]);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // AUTH LISTENER — eventos discriminados
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -439,6 +566,10 @@ export default function ProfileScreen() {
       }
 
       if (data.user) {
+        // 🎉 Disparar celebración ANTES del upsert de perfil
+        setShowCelebration(true);
+        setShowWelcomeModal(true);
+
         await supabase.from('profiles').upsert(
           { id: data.user.id, full_name: fullName.trim(), phone: phone.trim() || null },
           { onConflict: 'id' }
@@ -447,6 +578,35 @@ export default function ProfileScreen() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // COPIAR CÓDIGO AL PORTAPAPELES
+  // Usa Share como fallback universal — Clipboard nativo sin dependencia extra
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleCopyCode = async () => {
+    if (!welcomeCoupon) return;
+    try {
+      Clipboard.setString(welcomeCoupon.code);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 3000);
+    } catch {
+      try {
+        await Share.share({ message: welcomeCoupon.code });
+        setCopiedCode(true);
+        setTimeout(() => setCopiedCode(false), 3000);
+      } catch {
+        Alert.alert('Tu cupón de bienvenida', welcomeCoupon.code);
+      }
+    }
+  };
+
+  const handleCloseCelebration = () => {
+    setShowCelebration(false);
+    setShowWelcomeModal(false);
+    setCopiedCode(false);
+    // Resetear opacidad del confeti
+    confettiAnims.forEach(a => a.opacity.setValue(0));
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -715,11 +875,140 @@ export default function ProfileScreen() {
   if (!user) {
     return (
       <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+
+        {/* ── CONFETI ANIMADO — se pinta sobre todo usando absolute ─────── */}
+        {showCelebration && (
+          <View style={s.confettiContainer} pointerEvents="none">
+            {confettiAnims.map((anim, i) => {
+              const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+              const size = 8 + (i % 5) * 3; // tamaños variados: 8-20px
+              const isCircle = i % 3 !== 0;
+              return (
+                <Animated.View
+                  key={i}
+                  style={[
+                    s.confettiDot,
+                    {
+                      width: size,
+                      height: isCircle ? size : size * 1.6,
+                      borderRadius: isCircle ? size / 2 : 3,
+                      backgroundColor: color,
+                      opacity: anim.opacity,
+                      transform: [
+                        { translateX: anim.x },
+                        { translateY: anim.y },
+                        { scale: anim.scale },
+                        {
+                          rotate: anim.rotate.interpolate({
+                            inputRange: [-6, 6],
+                            outputRange: ['-180deg', '180deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── MODAL DE BIENVENIDA POST-REGISTRO ──────────────────────────── */}
+        <Modal
+          visible={showWelcomeModal}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={handleCloseCelebration}
+        >
+          <View style={s.modalOverlay}>
+            <View style={s.modalCard}>
+              {/* Cabecera del modal */}
+              <Text style={s.modalEmoji}>🎂</Text>
+              <Text style={s.modalTitle}>¡Bienvenida a la familia{`\n`}de La Tortaria!</Text>
+
+              <Text style={s.modalBody}>
+                Tu cuenta ha sido creada con éxito.{`\n`}Hemos activado tu cupón de bienvenida:
+              </Text>
+
+              {/* Caja del cupón */}
+              <View style={s.modalCouponBox}>
+                <Feather name="gift" size={18} color={BRAND.rose} style={{ marginRight: 8 }} />
+                <Text style={s.modalCouponCode}>
+                  {welcomeCoupon?.code ?? 'WELCOME_2026'}
+                </Text>
+              </View>
+
+              <Text style={s.modalBodySmall}>
+                Úsalo en tu carrito de compras para ahorrar{` `}
+                {welcomeCoupon ? formatCOP(welcomeCoupon.benefit) : ''} de inmediato.
+              </Text>
+
+              {/* Botón copiar */}
+              <TouchableOpacity
+                style={[s.copyButton, copiedCode && s.copyButtonCopied]}
+                onPress={handleCopyCode}
+                activeOpacity={0.82}
+              >
+                <Feather
+                  name={copiedCode ? 'check' : 'copy'}
+                  size={15}
+                  color={copiedCode ? BRAND.statusPaid : BRAND.white}
+                />
+                <Text style={[s.copyButtonText, copiedCode && s.copyButtonTextCopied]}>
+                  {copiedCode ? '¡Copiado al portapapeles!' : 'Copiar código'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Botón cerrar */}
+              <TouchableOpacity
+                style={s.closeModalButton}
+                onPress={handleCloseCelebration}
+                activeOpacity={0.8}
+              >
+                <Text style={s.closeModalText}>Continuar →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <ScrollView
           contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+
+          {/* ── BANNER DE INCENTIVO PARA INVITADOS — Tarjeta de Regalo ──── */}
+          {welcomeCoupon && (
+            <View style={s.welcomeBanner}>
+              <View style={s.welcomeBannerInner}>
+                <View style={s.welcomeBannerLeft}>
+                  <View style={s.welcomeGiftBadge}>
+                    <Feather name="gift" size={20} color={BRAND.rose} />
+                  </View>
+                </View>
+                <View style={s.welcomeBannerContent}>
+                  <Text style={s.welcomeBannerTitle}>
+                    ¡Tu Primer Antojo va por nuestra cuenta!
+                  </Text>
+                  <Text style={s.welcomeBannerBody}>
+                    Crea tu cuenta en solo{' '}
+                    <Text style={s.welcomeBannerHighlight}>10 segundos</Text>
+                    {' '}y te regalamos{' '}
+                    <Text style={s.welcomeBannerHighlight}>
+                      {formatCOP(welcomeCoupon.benefit)}
+                    </Text>
+                    {' '}para tu primer pedido.
+                  </Text>
+                  <Text style={s.welcomeBannerNote}>
+                    Aplica para compras mayores a{' '}
+                    {formatCOP(welcomeCoupon.min_order_amount)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Marca */}
           <View style={s.brandHeader}>
             <Text style={s.brandIcon}>🎂</Text>
@@ -1385,4 +1674,204 @@ const s = StyleSheet.create({
   socialButtonText: { fontFamily: BRAND.fontBody, fontSize: 15, color: BRAND.ink, fontWeight: '600' },
   // El botón de Apple usa su propio componente nativo con estilo propio
   appleButton: { width: '100%', height: 52 },
+
+  // ── Banner de incentivo para invitados (Tarjeta de Regalo) ────────────────
+  welcomeBanner: {
+    marginBottom: 20,
+    borderRadius: BRAND.radius + 2,
+    overflow: 'hidden',
+    // Sombra premium
+    shadowColor: BRAND.rose,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  welcomeBannerInner: {
+    backgroundColor: '#FFF9F5',
+    borderRadius: BRAND.radius + 2,
+    borderWidth: 1.5,
+    borderColor: '#E8C4B0',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  welcomeBannerLeft: {
+    paddingTop: 2,
+  },
+  welcomeGiftBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: BRAND.roseLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F0C4B4',
+  },
+  welcomeBannerContent: {
+    flex: 1,
+  },
+  welcomeBannerTitle: {
+    fontFamily: BRAND.fontDisplay,
+    fontSize: 14,
+    color: BRAND.roseDark,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  welcomeBannerBody: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 13,
+    color: BRAND.ink,
+    lineHeight: 19,
+    marginBottom: 5,
+  },
+  welcomeBannerHighlight: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 13,
+    color: BRAND.rose,
+    fontWeight: '700',
+  },
+  welcomeBannerNote: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 11,
+    color: BRAND.inkLight,
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
+
+  // ── Confeti animado ───────────────────────────────────────────────────────
+  confettiContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+    // No bloquea eventos de toque (pointerEvents="none" se pasa como prop)
+  },
+  confettiDot: {
+    position: 'absolute',
+    top: 0,
+    left: SCREEN_W / 2,  // centro base — translateX lo mueve
+  },
+
+  // ── Modal de celebración post-registro ────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(44, 32, 24, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    backgroundColor: BRAND.white,
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    shadowColor: BRAND.ink,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 20,
+    borderWidth: 1,
+    borderColor: '#F5E6DF',
+  },
+  modalEmoji: {
+    fontSize: 52,
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontFamily: BRAND.fontDisplay,
+    fontSize: 20,
+    color: BRAND.ink,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 28,
+    marginBottom: 12,
+  },
+  modalBody: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 14,
+    color: BRAND.inkMid,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 14,
+  },
+  modalBodySmall: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 12,
+    color: BRAND.inkLight,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  modalCouponBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BRAND.roseLight,
+    borderRadius: BRAND.radiusSm + 2,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: BRAND.rose,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+  },
+  modalCouponCode: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 20,
+    color: BRAND.rose,
+    fontWeight: '800',
+    letterSpacing: 3,
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: BRAND.rose,
+    borderRadius: BRAND.radius,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+    marginBottom: 12,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    shadowColor: BRAND.rose,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.32,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  copyButtonCopied: {
+    backgroundColor: BRAND.statusPaidBg,
+    shadowColor: BRAND.statusPaid,
+  },
+  copyButtonText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 15,
+    color: BRAND.white,
+    fontWeight: '700',
+  },
+  copyButtonTextCopied: {
+    color: BRAND.statusPaid,
+  },
+  closeModalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  closeModalText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 15,
+    color: BRAND.inkMid,
+    fontWeight: '600',
+  },
 });

@@ -1,0 +1,80 @@
+﻿|-- .claude
+    |-- settings.json
+|-- .expo
+    |-- dev
+        |-- logs
+            |-- start.log
+    |-- types
+        |-- router.d.ts
+    |-- web
+        |-- cache
+            |-- production
+                |-- images
+                    |-- favicon
+                        |-- favicon-3cca3004e3d33e65247ddd3e6fada5cbd40cb06d54718528ca361aafbdb8ba3f-contain-transparent
+                            |-- favicon-48.png
+                        |-- favicon-a4e030697a7571b3e95d31860e4da55d2f98e5e861e2b55e414f45a8556828ba-contain-transparent
+                            |-- favicon-48.png
+    |-- devices.json
+    |-- README.md
+    |-- settings.json
+|-- .vscode
+    |-- extensions.json
+    |-- settings.json
+|-- app
+    |-- (tabs)
+        |-- cart.tsx
+        |-- explore.tsx
+        |-- favorites.tsx
+        |-- index.tsx
+        |-- profile.tsx
+        |-- _layout.tsx
+    |-- auth
+        |-- callback.tsx
+    |-- product
+        |-- [id].tsx
+    |-- +html.tsx
+    |-- +not-found.tsx
+    |-- modal.tsx
+    |-- _layout.tsx
+|-- assets
+    |-- fonts
+        |-- SpaceMono-Regular.ttf
+    |-- images
+        |-- android-icon-foreground.png
+        |-- favicon.png
+        |-- icon.png
+        |-- splash-icon.png
+|-- components
+    |-- EditScreenInfo.tsx
+    |-- ExternalLink.tsx
+    |-- StyledText.tsx
+    |-- Themed.tsx
+    |-- useClientOnlyValue.ts
+    |-- useClientOnlyValue.web.ts
+    |-- useColorScheme.ts
+    |-- useColorScheme.web.ts
+|-- constants
+    |-- Colors.ts
+|-- icons
+    |-- APP_icon1.jpeg
+    |-- APP_icon2.jpeg
+    |-- APP_icon3.jpg
+|-- lib
+    |-- supabase.ts
+|-- store
+    |-- useCartStore.ts
+|-- supabase_LaTortariaMobile
+    |-- todas las tablas.sql
+|-- .gitignore
+|-- .npmrc
+|-- AGENTS.md
+|-- app.config.js
+|-- CLAUDE.md
+|-- eas.json
+|-- estructura_arbol.txt
+|-- expo-env.d.ts
+|-- LICENSE
+|-- package-lock.json
+|-- package.json
+|-- tsconfig.json

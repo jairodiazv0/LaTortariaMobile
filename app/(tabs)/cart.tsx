@@ -496,10 +496,17 @@ export default function CartScreen() {
     setCouponError(null);
     setIsValidatingCoupon(true);
     try {
+      // 🔒 Extraer el ID del usuario autenticado — crítico para validar un solo uso en el backend
+      const authenticatedUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
+
       const response = await fetch('https://www.latortaria.com/api/checkout/validate-coupon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-platform': 'mobile' },
-        body: JSON.stringify({ code: couponCode.trim().toUpperCase(), orderAmount: subtotal }),
+        body: JSON.stringify({
+          code: couponCode.trim().toUpperCase(),
+          orderAmount: subtotal,
+          userId: authenticatedUserId, // 🔒 Crítico para validar un solo uso en el backend
+        }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) {

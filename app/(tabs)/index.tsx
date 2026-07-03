@@ -788,7 +788,7 @@ export default function HomeScreen() {
                   </View>
                   <Text style={styles.modalTitle}>🎉 ¡Tienes (1) Giro Gratis de Bienvenida! 🎉</Text>
                   <Text style={styles.modalSubtitle}>
-                    Descubre el regalo exclusivo que la cocina tiene para tu primer antojo.
+                    Descubre el regalo exclusivo que la Tortaria tiene para tu primer antojo.
                   </Text>
                   <View style={styles.wheelContainer}>
                     <Animated.View

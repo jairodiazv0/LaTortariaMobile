@@ -18,8 +18,6 @@ interface CategorySectionProps {
   onPressProduct?: (productId: string) => void;
 }
 
-const PANEL_WIDTH = 160;
-const PANEL_HEIGHT = 180;
 const CARD_WIDTH = 160;
 
 export function CategorySection({ category, products, onPressProduct }: CategorySectionProps) {
@@ -28,15 +26,26 @@ export function CategorySection({ category, products, onPressProduct }: Category
   if (!products || products.length === 0) return null;
 
   const handleSeeAll = () => {
-    router.push('/(tabs)/explore');
+    router.push(`/(tabs)/explore?categorySlug=${category.slug}`);
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.row}>
-        <View style={styles.panel}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>{category.name}</Text>
+        <TouchableOpacity style={styles.headerSeeAll} activeOpacity={0.7} onPress={handleSeeAll}>
+          <Text style={styles.headerSeeAllText}>Ver todo →</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.carouselContent}
+        style={styles.carousel}>
+        <TouchableOpacity style={styles.categoryCard} activeOpacity={0.85} onPress={handleSeeAll}>
           {category.image_url ? (
-            <Image source={{ uri: category.image_url }} style={styles.panelImage} resizeMode="cover" />
+            <Image source={{ uri: category.image_url }} style={styles.categoryImage} resizeMode="cover" />
           ) : (
             <LinearGradient
               colors={[BRAND.moss, BRAND.ink]}
@@ -46,38 +55,28 @@ export function CategorySection({ category, products, onPressProduct }: Category
             />
           )}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.7)']}
-            style={styles.panelOverlay}
+            colors={['transparent', 'rgba(0,0,0,0.75)']}
+            style={styles.categoryOverlay}
           />
-          <View style={styles.panelContent}>
-            <Text style={styles.panelTitle}>{category.name}</Text>
-            {category.description ? (
-              <Text style={styles.panelDescription} numberOfLines={2}>
-                {category.description}
-              </Text>
-            ) : null}
-            <TouchableOpacity style={styles.seeAllButton} activeOpacity={0.85} onPress={handleSeeAll}>
-              <Text style={styles.seeAllText}>Ver todo</Text>
-              <Feather name="arrow-right" size={12} color={BRAND.ink} />
-            </TouchableOpacity>
+          <View style={styles.categoryContent}>
+            <Text style={styles.categoryTitle} numberOfLines={3}>
+              {category.name}
+            </Text>
+            <View style={styles.categoryArrowContainer}>
+              <Feather name="arrow-right" size={14} color="#FFFFFF" />
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.carouselContent}
-          style={styles.carousel}>
-          {products.map((product) => (
-            <ProductCardMobile
-              key={product.id}
-              product={product}
-              width={CARD_WIDTH}
-              onPress={() => onPressProduct?.(product.id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+        {products.map((product) => (
+          <ProductCardMobile
+            key={product.id}
+            product={product}
+            width={CARD_WIDTH}
+            onPress={() => onPressProduct?.(product.id)}
+          />
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -87,55 +86,57 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginHorizontal: 16,
   },
-  row: {
+  header: {
     flexDirection: 'row',
-    gap: 12,
-    alignItems: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  panel: {
-    width: PANEL_WIDTH,
-    height: PANEL_HEIGHT,
+  headerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: BRAND.ink,
+  },
+  headerSeeAll: {
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
+  headerSeeAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: BRAND.moss,
+  },
+  categoryCard: {
+    width: CARD_WIDTH,
     borderRadius: 16,
     overflow: 'hidden',
   },
-  panelImage: {
+  categoryImage: {
     ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
   },
-  panelOverlay: {
+  categoryOverlay: {
     ...StyleSheet.absoluteFill,
   },
-  panelContent: {
+  categoryContent: {
     flex: 1,
     justifyContent: 'flex-end',
     padding: 12,
-    gap: 4,
+    gap: 6,
+    minHeight: 220, // matches average ProductCardMobile height visually
   },
-  panelTitle: {
+  categoryTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  panelDescription: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  categoryArrowContainer: {
     alignSelf: 'flex-start',
-    gap: 4,
-    marginTop: 6,
-    backgroundColor: BRAND.lime,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 99,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  seeAllText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: BRAND.ink,
+    padding: 6,
+    marginTop: 4,
   },
   carousel: {
     flex: 1,
@@ -143,5 +144,6 @@ const styles = StyleSheet.create({
   carouselContent: {
     gap: 10,
     paddingRight: 4,
+    alignItems: 'stretch',
   },
 });

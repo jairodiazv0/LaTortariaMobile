@@ -169,10 +169,15 @@
         |-- icon.png
         |-- splash-icon.png
 |-- components
+    |-- CategorySection.tsx
+    |-- CategoryStrip.tsx
     |-- EditScreenInfo.tsx
     |-- ExternalLink.tsx
+    |-- HeroBannerCarousel.tsx
+    |-- ProductCardMobile.tsx
     |-- StyledText.tsx
     |-- Themed.tsx
+    |-- TrustBar.tsx
     |-- useClientOnlyValue.ts
     |-- useClientOnlyValue.web.ts
     |-- useColorScheme.ts

@@ -18,6 +18,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
+import HeroBannerCarousel, { HeroBanner } from '@/components/HeroBannerCarousel';
+import { CategorySection } from '@/components/CategorySection';
+import { CategoryStrip } from '@/components/CategoryStrip';
+import { ProductCardData, ProductCardMobile } from '@/components/ProductCardMobile';
+import { TrustBar } from '@/components/TrustBar';
+import { BRAND as WEB_BRAND } from '@/constants/Colors';
+
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
 
@@ -29,6 +36,8 @@ interface Category {
   id: string;
   name: string;
   slug: string;
+  image_url?: string | null;
+  description?: string | null;
 }
 
 interface DBProductVariant {
@@ -56,6 +65,9 @@ interface DBProduct {
   id: string;
   name: string;
   slug: string;
+  category_id: string | null;
+  short_description: string | null;
+  is_healthy: boolean;
   preparation_hours: number;
   is_featured: boolean;
   rating_avg: number;
@@ -75,10 +87,16 @@ interface Product {
   reviewCount: number;
   preparation_hours: number;
   basePrice: number;
+  minPrice: number;
   compareAtPrice?: number | null;
   imageUrl?: string | null;
   badge?: ProductBadge;
+  categoryId?: string | null;
   categoryName?: string | null;
+  shortDescription?: string;
+  isHealthy?: boolean;
+  isFeatured?: boolean;
+  variantsCount?: number;
   tags: string[];
 }
 
@@ -92,6 +110,19 @@ function formatLocationDate(date: Date): string {
 
 function formatCOP(price: number): string {
   return `$${price.toLocaleString('es-CO')}`;
+}
+
+function toProductCardData(product: Product): ProductCardData {
+  return {
+    id: product.id,
+    name: product.name,
+    short_description: product.shortDescription,
+    image_url: product.imageUrl,
+    minPrice: product.minPrice ?? product.basePrice,
+    compare_at_price: product.compareAtPrice,
+    is_healthy: product.isHealthy,
+    variantsCount: product.variantsCount,
+  };
 }
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
@@ -154,142 +185,6 @@ function HomeHeader({
   );
 }
 
-function CategorySection({
-  categories,
-  selectedCategoryId,
-  onSelectCategory,
-}: {
-  categories: Category[];
-  selectedCategoryId: string | null;
-  onSelectCategory: (id: string | null) => void;
-}) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Nuestras Especialidades</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.occasionScroll}>
-
-        {/* Chip dinámico para 'Todos' los productos */}
-        <TouchableOpacity
-          style={[styles.occasionChip, !selectedCategoryId && styles.occasionChipSelected]}
-          activeOpacity={0.75}
-          onPress={() => onSelectCategory(null)}>
-          <Text style={styles.occasionEmoji}>✨</Text>
-          <Text style={[styles.occasionLabel, !selectedCategoryId && styles.occasionLabelSelected]}>
-            Todo
-          </Text>
-        </TouchableOpacity>
-
-        {categories.map((cat) => {
-          const isSelected = selectedCategoryId === cat.id;
-          // Asignar un emoji por defecto o dinámico basado en el slug
-          let emoji = '🍰';
-          if (cat.slug.includes('cupcake')) emoji = '🧁';
-          if (cat.slug.includes('trufa') || cat.slug.includes('chocolate')) emoji = '🍫';
-          if (cat.slug.includes('galleta')) emoji = '🍪';
-
-          return (
-            <TouchableOpacity
-              key={cat.id}
-              style={[styles.occasionChip, isSelected && styles.occasionChipSelected]}
-              activeOpacity={0.75}
-              onPress={() => onSelectCategory(isSelected ? null : cat.id)}>
-              <Text style={styles.occasionEmoji}>{emoji}</Text>
-              <Text style={[styles.occasionLabel, isSelected && styles.occasionLabelSelected]}>
-                {cat.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-interface ProductCardProps {
-  product: Product;
-  onAdd: (product: Product) => void;
-  onPress: () => void;
-}
-
-function ProductCard({ product, onAdd, onPress }: ProductCardProps) {
-  return (
-    <TouchableOpacity
-      style={styles.productCard}
-      activeOpacity={0.9}
-      onPress={onPress}>
-      <View style={styles.productImageWrapper}>
-        {product.imageUrl ? (
-          <Image
-            source={{ uri: product.imageUrl }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.productImagePlaceholder}>
-            <Text style={styles.productImageEmoji}>🍰</Text>
-          </View>
-        )}
-        {product.badge ? (
-          <View
-            style={[
-              styles.productBadge,
-              product.badge === 'NUEVO' && styles.productBadgeNew,
-            ]}>
-            <Text style={styles.productBadgeText}>{product.badge}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <View style={styles.productDetails}>
-        <Text style={styles.productName} numberOfLines={2}>
-          {product.name} — {product.sizeLabel}
-        </Text>
-        <Text style={styles.productRating}>
-          ⭐ {product.rating.toFixed(1)} · {product.reviewCount} reseñas
-        </Text>
-        <Text style={styles.productPrepTime}>🕒 {product.preparation_hours}h preparación</Text>
-
-        <View style={styles.productFooter}>
-          <Text style={styles.productPrice}>{formatCOP(product.basePrice)}</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            activeOpacity={0.85}
-            onPress={onPress}>
-            <Feather name="shopping-cart" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-interface FeaturedSectionProps {
-  products: Product[];
-  onAddProduct: (product: Product) => void;
-  onPressProduct: (product: Product) => void;
-}
-
-function FeaturedSection({ products, onAddProduct, onPressProduct }: FeaturedSectionProps) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Más amados</Text>
-      <View style={styles.productList}>
-        {products.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onAdd={onAddProduct}
-            onPress={() => onPressProduct(product)}
-          />
-        ))}
-      </View>
-    </View>
-  );
-}
-
 // ─── Pantalla principal ──────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -303,6 +198,10 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [banners, setBanners] = useState<HeroBanner[]>([]);
+  const [categoriesWithProducts, setCategoriesWithProducts] = useState<
+    Array<{ category: Category; products: Product[] }>
+  >([]);
 
 
   // ── Estados de la Ruleta de la Dulzura ────────────────────────────────────
@@ -537,7 +436,7 @@ export default function HomeScreen() {
       try {
         const { data } = await supabase
           .from('categories')
-          .select('id, name, slug')
+          .select('id, name, slug, image_url, description')
           .eq('is_active', true)
           .is('parent_id', null) // 🛡️ Regla UX: Solo categorías raíz
           .order('sort_order', { ascending: true });
@@ -547,6 +446,17 @@ export default function HomeScreen() {
       }
     }
     fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    supabase
+      .from('hero_banners')
+      .select('*')
+      .eq('is_active', true)
+      .order('priority', { ascending: true })
+      .then(({ data }) => {
+        if (data) setBanners(data as HeroBanner[]);
+      });
   }, []);
 
   // ── Carga de productos desde Supabase ────────────────────────────────────────
@@ -563,6 +473,9 @@ export default function HomeScreen() {
             id,
             name,
             slug,
+            category_id,
+            short_description,
+            is_healthy,
             preparation_hours,
             is_featured,
             rating_avg,
@@ -607,6 +520,11 @@ export default function HomeScreen() {
 
             // Tomamos el primer registro de variante disponible para mostrar el "precio base"
             const baseVariant = activeVariants[0];
+            const validPrices = activeVariants
+              .map((v) => Number(v.price))
+              .filter((price) => !Number.isNaN(price) && price > 0);
+            const minPrice =
+              validPrices.length > 0 ? Math.min(...validPrices) : Number(baseVariant.price);
 
             // Buscar la media de portada (is_cover = true y type = 'image')
             const coverImage = dbProd.product_media.find(
@@ -628,10 +546,16 @@ export default function HomeScreen() {
               reviewCount: dbProd.review_count || 0,
               preparation_hours: dbProd.preparation_hours,
               basePrice: Number(baseVariant.price),
+              minPrice,
               compareAtPrice: baseVariant.compare_at_price ? Number(baseVariant.compare_at_price) : null,
               imageUrl: coverImage?.url || null,
               badge,
+              categoryId: dbProd.category_id,
               categoryName: dbProd.categories?.name || null,
+              shortDescription: dbProd.short_description || '',
+              isHealthy: dbProd.is_healthy || false,
+              isFeatured: dbProd.is_featured || false,
+              variantsCount: activeVariants.length,
               tags: dbProd.tags || [],
             };
           })
@@ -649,13 +573,23 @@ export default function HomeScreen() {
     fetchProducts();
   }, []);
 
+  useEffect(() => {
+    if (categories.length === 0 || products.length === 0) return;
+    const grouped = categories
+      .map((cat) => ({
+        category: cat,
+        products: products.filter((p) => p.categoryId === cat.id).slice(0, 10),
+      }))
+      .filter((g) => g.products.length > 0);
+    setCategoriesWithProducts(grouped);
+  }, [categories, products]);
+
   // ── Búsqueda reactiva + filtro por especialidad seleccionada ─────────────────
   const filteredProducts = useMemo(() => {
     // Primero filtramos por categoría de base de datos si hay una seleccionada
     let baseList = products;
     if (selectedCategoryId) {
-      const currentCat = categories.find((c) => c.id === selectedCategoryId);
-      baseList = products.filter((p) => p.categoryName === currentCat?.name);
+      baseList = products.filter((p) => p.categoryId === selectedCategoryId);
     }
 
     if (!searchQuery.trim()) return baseList;
@@ -682,6 +616,22 @@ export default function HomeScreen() {
       return haystack.includes(target);
     });
   }, [products, searchQuery, selectedCategoryId, categories]);
+
+  const featuredProducts = useMemo(
+    () => filteredProducts.filter((p) => p.isFeatured),
+    [filteredProducts]
+  );
+
+  const discoveryProducts = useMemo(() => {
+    const sectionIds = new Set(
+      categoriesWithProducts.flatMap((g) => g.products.map((p) => p.id))
+    );
+    return filteredProducts.filter((p) => {
+      if (p.isFeatured) return false;
+      if (!selectedCategoryId && sectionIds.has(p.id)) return false;
+      return true;
+    });
+  }, [filteredProducts, categoriesWithProducts, selectedCategoryId]);
 
   const handleAddProduct = (product: Product) => {
     addItem({
@@ -712,15 +662,17 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}>
         <HomeHeader profileName={profileName} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-        <CategorySection
+        <HeroBannerCarousel banners={banners} />
+        <TrustBar />
+        <CategoryStrip
           categories={categories}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategory={setSelectedCategoryId}
+          selectedId={selectedCategoryId}
+          onSelect={setSelectedCategoryId}
         />
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={BRAND.orange} />
+            <ActivityIndicator size="large" color={WEB_BRAND.moss} />
             <Text style={styles.loadingText}>Cargando delicias...</Text>
           </View>
         ) : error ? (
@@ -735,11 +687,56 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>Por el momento no hay productos disponibles.</Text>
           </View>
         ) : (
-          <FeaturedSection
-            products={filteredProducts}
-            onAddProduct={handleAddProduct}
-            onPressProduct={handlePressProduct}
-          />
+          <>
+            {featuredProducts.length > 0 ? (
+              <View style={styles.homeSection}>
+                <Text style={styles.homeSectionTitle}>Los más amados</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalCarousel}>
+                  {featuredProducts.map((product) => (
+                    <ProductCardMobile
+                      key={product.id}
+                      product={toProductCardData(product)}
+                      width={160}
+                      onPress={() => handlePressProduct(product)}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {!selectedCategoryId
+              ? categoriesWithProducts.map(({ category, products: catProducts }) => (
+                  <CategorySection
+                    key={category.id}
+                    category={category}
+                    products={catProducts.map(toProductCardData)}
+                    onPressProduct={(id) => {
+                      const product = products.find((p) => p.id === id);
+                      if (product) handlePressProduct(product);
+                    }}
+                  />
+                ))
+              : null}
+
+            {discoveryProducts.length > 0 ? (
+              <View style={styles.homeSection}>
+                <Text style={styles.homeSectionTitle}>Descubre más delicias</Text>
+                <View style={styles.discoveryGrid}>
+                  {discoveryProducts.map((product) => (
+                    <View key={product.id} style={styles.discoveryGridItem}>
+                      <ProductCardMobile
+                        product={toProductCardData(product)}
+                        onPress={() => handlePressProduct(product)}
+                      />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </>
         )}
       </ScrollView>
 
@@ -1024,16 +1021,17 @@ const BRAND = {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: BRAND.background,
+    backgroundColor: WEB_BRAND.cream,
   },
   content: {
     flexGrow: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
   },
 
   // Header
   header: {
     marginBottom: 28,
+    paddingHorizontal: 16,
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -1065,7 +1063,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: BRAND.orange,
+    backgroundColor: WEB_BRAND.moss,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1103,9 +1101,32 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: BRAND.orange,
+    backgroundColor: WEB_BRAND.moss,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  homeSection: {
+    marginTop: 24,
+    paddingHorizontal: 16,
+  },
+  homeSectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: WEB_BRAND.ink,
+    marginBottom: 12,
+  },
+  horizontalCarousel: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  discoveryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  discoveryGridItem: {
+    width: '48%',
   },
 
   // Secciones

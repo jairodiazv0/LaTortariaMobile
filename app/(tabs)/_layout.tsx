@@ -19,7 +19,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         // Color del icono y texto cuando la pestaña está seleccionada
-        tabBarActiveTintColor: BRAND.rose,
+        tabBarActiveTintColor: '#2F6B4F',
         // Color del icono y texto cuando la pestaña está inactiva
         tabBarInactiveTintColor: '#8E8E93',
         // Estilización premium de la barra inferior de La Tortaría

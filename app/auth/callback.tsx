@@ -5,7 +5,7 @@ export default function AuthCallbackScreen() {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color="#C8745A" />
-      <Text style={styles.text}>Autenticando con la pastelería...</Text>
+      <Text style={styles.text}>Autenticando en La Tortaria...</Text>
     </View>
   );
 }

@@ -502,7 +502,16 @@ export default function ProfileScreen() {
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+      // Bloque A — solo SIGNED_IN: navega al catálogo tras autenticación
+      if (event === 'SIGNED_IN') {
+        const cu = session?.user ?? null;
+        setUser(cu);
+        if (cu) await loadUserData(cu.id);
+        router.replace('/'); // [AUTH-REDIRECT]
+      }
+
+      // Bloque B — TOKEN_REFRESHED y USER_UPDATED: actualiza datos sin navegar
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         const cu = session?.user ?? null;
         setUser(cu);
         if (cu) await loadUserData(cu.id);
@@ -607,6 +616,7 @@ export default function ProfileScreen() {
     setCopiedCode(false);
     // Resetear opacidad del confeti
     confettiAnims.forEach(a => a.opacity.setValue(0));
+    router.replace('/'); // [AUTH-REDIRECT]
   };
 
   // ─────────────────────────────────────────────────────────────────────────

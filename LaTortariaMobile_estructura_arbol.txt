@@ -17,6 +17,13 @@
                             |-- icon_216.png
                             |-- icon_324.png
                             |-- icon_432.png
+                    |-- android-notification
+                        |-- android-notification-ba66c76097505e7a1a1466e69ebc583d35a9726f5396c8d43d74e9e15b20dbff-cover-transparent
+                            |-- icon_24.png
+                            |-- icon_36.png
+                            |-- icon_48.png
+                            |-- icon_72.png
+                            |-- icon_96.png
                     |-- android-standard-circle
                         |-- android-standard-circle-ba66c76097505e7a1a1466e69ebc583d35a9726f5396c8d43d74e9e15b20dbff-cover-transparent
                             |-- icon_144.png
@@ -54,8 +61,6 @@
         |-- 9.3.1
             |-- checksums
                 |-- checksums.lock
-                |-- md5-checksums.bin
-                |-- sha1-checksums.bin
             |-- expanded
             |-- fileChanges
                 |-- last-build.bin
@@ -88,14 +93,19 @@
                         |-- ic_launcher_background.xml
                         |-- rn_edit_text_material.xml
                     |-- drawable-hdpi
+                        |-- notification_icon.png
                         |-- splashscreen_logo.png
                     |-- drawable-mdpi
+                        |-- notification_icon.png
                         |-- splashscreen_logo.png
                     |-- drawable-xhdpi
+                        |-- notification_icon.png
                         |-- splashscreen_logo.png
                     |-- drawable-xxhdpi
+                        |-- notification_icon.png
                         |-- splashscreen_logo.png
                     |-- drawable-xxxhdpi
+                        |-- notification_icon.png
                         |-- splashscreen_logo.png
                     |-- mipmap-anydpi-v26
                         |-- ic_launcher.xml
@@ -175,6 +185,7 @@
     |-- ExternalLink.tsx
     |-- HeroBannerCarousel.tsx
     |-- ProductCardMobile.tsx
+    |-- PushPermissionModal.tsx
     |-- StyledText.tsx
     |-- Themed.tsx
     |-- TrustBar.tsx
@@ -184,6 +195,8 @@
     |-- useColorScheme.web.ts
 |-- constants
     |-- Colors.ts
+|-- hooks
+    |-- usePushPermissionRequest.ts
 |-- icons
     |-- APP_icon1.jpeg
     |-- APP_icon2.jpeg
@@ -202,8 +215,10 @@
 |-- eas.json
 |-- estructura_arbol.txt
 |-- expo-env.d.ts
+|-- Infraestructura_LaTortariaMobile.txt
 |-- LaTortariaMobile_estructura_arbol.txt
 |-- LICENSE
 |-- package-lock.json
 |-- package.json
 |-- tsconfig.json
+|-- ___LaTortariaMobile_estructura_arbol.txt

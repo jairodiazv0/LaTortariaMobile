@@ -79,7 +79,7 @@ function RootLayoutNav() {
         // ⚡ ¡CORREGIDO! Agregamos un pequeño delay para permitir que el árbol nativo de
         // navegación se monte por completo en un Cold Start, evitando el flash de "Screen doesn't exist".
         setTimeout(() => {
-          router.replace('/profile');
+          router.replace('/'); // [AUTH-REDIRECT]
         }, 400);
 
         return;

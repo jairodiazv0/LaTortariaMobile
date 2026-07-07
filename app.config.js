@@ -61,7 +61,13 @@ module.exports = {
       ],
       "expo-image",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png" //Asegura que Android tenga el ícono de marca en las notificaciones push
+        }
+      ]
     ],
     experiments: {
       typedRoutes: true

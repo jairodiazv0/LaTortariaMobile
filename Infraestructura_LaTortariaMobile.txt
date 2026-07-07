@@ -1,0 +1,59 @@
+A continuación, presento el reporte preciso y riguroso de su arquitectura actual:
+CONTEXTO DEL PROYECTO
+─────────────────────
+App:           LaTortariaMobile — E-commerce de repostería personalizada
+Framework:     React Native 0.85.3 / Expo 56.0.12
+Router:        Expo Router 56.2.11 (typedRoutes: true)
+Estado:        Zustand 5.0.14 (patrón en store/useCartStore.ts)
+Backend:       Supabase (@supabase/supabase-js 2.108.2 — cliente en lib/supabase.ts)
+Async/Caché:   React Query (@tanstack/react-query 5.101.0)
+Animaciones:   React Native Reanimated 4.3.1
+Seguridad:     expo-secure-store con ExpoSecureStoreAdapter (ya implementado en lib/supabase.ts)
+Lenguaje:      TypeScript estricto v6.0.3
+Notificaciones: expo-notifications NO instalada aún  (6 Julio 2026)
+
+
+
+📱 1. Stack Tecnológico Base
+Framework Principal: React Native (v0.85.3).
+Plataforma / Ecosistema: Expo (v56.0.12).
+Enrutamiento: Utiliza Expo Router (v56.2.11) configurado como el punto de entrada principal ("main": "expo-router/entry"). Además, tiene activadas las rutas tipadas (typedRoutes: true).
+Configuración de Expo:
+
+
+app.config.js
+: Se usa formato .js en lugar de .json específicamente para inyectar configuraciones nativas avanzadas (como intentFilters para Android con launchMode: singleTask, útil para manejar retornos de pasarelas de pago o deep links).
+
+
+eas.json
+: Está configurado para compilaciones en la nube a través de EAS (Expo Application Services) definiendo perfiles de development, preview y production.
+🧠 2. Gestor de Estado
+Herramienta: Zustand (v5.0.14).
+Estado Actual: Sí, existe un patrón ya establecido y funcional.
+Implementación: En el archivo 
+
+store/useCartStore.ts
+ se gestiona el estado global del carrito de compras (useCartStore).
+Proceso definido: Posee un tipado estricto para productos de repostería que incluyen "Personalización profunda" (Customization como textos personalizados, imágenes de referencia, paleta de colores) y "Complementos" (AddOn como velas o tarjetas).
+Lógica de negocio: Genera un hash (cart_id) único para cada producto basándose en sus variaciones y personalizaciones, evitando que dos tortas iguales pero con mensajes distintos se agrupen por error. Además gestiona un flag isVerifyingPayment.
+☁️ 3. Backend y Servicios de Datos
+BaaS (Backend as a Service): Supabase (@supabase/supabase-js v2.108.2).
+Implementación: En 
+
+lib/supabase.ts
+ el cliente ya está inicializado.
+¿Qué más tiene?
+Seguridad: Implementa un adaptador personalizado (ExpoSecureStoreAdapter) usando expo-secure-store. Esto es una excelente práctica, ya que asegura que los tokens de sesión de Supabase se guarden de forma cifrada directamente en el Keychain/Keystore nativo del dispositivo, y no en texto plano.
+Consumo de datos: El proyecto cuenta con React Query (@tanstack/react-query v5.101.0). Lo que indica que, aunque Supabase es el backend, las peticiones asíncronas y la caché de datos de la UI se están manejando (o se planean manejar) mediante React Query.
+🔔 4. Servicio de Notificaciones
+Estado Actual: No existe nada configurado aún.
+Detalle: Revisando el package.json y el app.config.js, no hay rastro de la librería expo-notifications. Actualmente el ecosistema de Expo soporta las notificaciones nativas de manera excelente, pero para este proyecto en particular tendrás que instalar el paquete, registrar el plugin en app.config.js y configurar los credenciales de Push (APNs para iOS y FCM para Android) cuando desees implementarlo.
+🔤 5. Lenguaje y Herramientas Adicionales
+Lenguaje: TypeScript estricto (v6.0.3). Todo el código de negocio revisado (.ts, expo-env.d.ts) hace uso de interfaces y tipado fuerte.
+UI y Estilos:
+Gráficos vectoriales y SVGs nativos (react-native-svg, @expo/vector-icons).
+Uso de expo-image para un manejo optimizado y cacheado de imágenes.
+Gradientes con expo-linear-gradient.
+Animaciones: Utiliza React Native Reanimated (v4.3.1), el estándar de la industria para animaciones de alto rendimiento a 60fps en el hilo de UI.
+Autenticación: Está instalada la librería expo-apple-authentication, lo que sugiere que el proyecto incluye (o prevé) el inicio de sesión nativo con Apple, obligatorio en iOS si ofreces otros métodos de login social (como Google).
+Resumen: Tengo  una arquitectura muy moderna y escalable. La combinación de Expo Router + Zustand + Supabase + React Query + Reanimated es actualmente considerada el "Modern React Native Stack" por excelencia.

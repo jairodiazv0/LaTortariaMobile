@@ -20,6 +20,8 @@ import { Feather } from '@expo/vector-icons';
 
 import { CartItem, useCartStore } from '../../store/useCartStore';
 import { supabase } from '../../lib/supabase';
+import { usePushPermissionRequest } from '../../hooks/usePushPermissionRequest'; // [PUSH v1]
+import { PushPermissionModal } from '../../components/PushPermissionModal'; // [PUSH v1]
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -213,6 +215,9 @@ export default function CartScreen() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
+  const [showPushModal, setShowPushModal] = useState(false); // [PUSH v1]
+  const { checkPushEligibility, requestPushPermission } = usePushPermissionRequest(); // [PUSH v1]
+
   const subtotal = getTotalPrice();
   const shipping = subtotal >= freeShippingThreshold ? 0 : shippingCost;
   const total = subtotal + shipping - appliedDiscount;
@@ -315,10 +320,22 @@ export default function CartScreen() {
         if (data.status === 'paid') {
           await SecureStore.deleteItemAsync('pending_order_id');
           clearCart();
+
+          const eligible = await checkPushEligibility(); // [PUSH v1]
+
           Alert.alert(
             '¡Pedido confirmado! 🎉',
             'Tu pago fue aprobado. La cocina ya está preparando tu orden.',
-            [{ text: '¡Perfecto!', onPress: () => router.replace('/') }]
+            [{ 
+              text: '¡Perfecto!', 
+              onPress: () => {
+                if (eligible) {
+                  setShowPushModal(true); // [PUSH v1]
+                } else {
+                  router.replace('/'); // [PUSH v1]
+                }
+              }
+            }]
           );
           return;
         }
@@ -550,6 +567,21 @@ export default function CartScreen() {
           Estamos verificando la aprobación de tu transacción con la cocina.{'\n'}
           Por favor no cierres la aplicación.
         </Text>
+
+        <PushPermissionModal 
+          visible={showPushModal} 
+          onAccept={async () => {
+            await requestPushPermission(); // [PUSH v1]
+            await SecureStore.setItemAsync('lt_push_permission_asked', 'true'); // [PUSH v1]
+            setShowPushModal(false); // [PUSH v1]
+            router.replace('/'); // [PUSH v1]
+          }}
+          onDecline={async () => {
+            await SecureStore.setItemAsync('lt_push_permission_asked', 'true'); // [PUSH v1]
+            setShowPushModal(false); // [PUSH v1]
+            router.replace('/'); // [PUSH v1]
+          }}
+        /> 
       </View>
     );
   }

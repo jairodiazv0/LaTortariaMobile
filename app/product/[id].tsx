@@ -55,6 +55,7 @@ interface DBProduct {
   category_id: string;
   short_description?: string;
   long_description?: string;
+  is_customizable: boolean; // [CUSTOMIZABLE v1]
   product_variants: DBProductVariant[];
   product_media: DBProductMedia[];
 }
@@ -187,6 +188,7 @@ export default function ProductDetailScreen() {
             category_id,
             short_description,
             long_description,
+            is_customizable,
             product_variants (
               id,
               price,
@@ -586,50 +588,52 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {/* Acordeón de Personalización */}
-          <View style={styles.accordionContainer}>
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              activeOpacity={0.8}
-              onPress={() => setIsCustomizationCollapsed(!isCustomizationCollapsed)}>
-              <View style={styles.accordionHeaderTitleRow}>
-                <Feather name="edit-3" size={18} color="#FF6B00" style={styles.accordionIcon} />
-                <Text style={styles.accordionHeaderTitle}>Personaliza tu Pastel</Text>
-              </View>
-              <Feather
-                name={isCustomizationCollapsed ? 'chevron-down' : 'chevron-up'}
-                size={20}
-                color="#8E8E93"
-              />
-            </TouchableOpacity>
-
-            {!isCustomizationCollapsed && (
-              <View style={styles.accordionBody}>
-                <Text style={styles.inputLabel}>Dedicatoria o mensaje en el pastel</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Ej: ¡Feliz Cumpleaños Jairo! 🎉"
-                  placeholderTextColor="#8E8E93"
-                  value={customText}
-                  onChangeText={setCustomText}
-                  maxLength={60}
+          {/* Acordeón de Personalización — solo visible si el producto es personalizable */}
+          {product.is_customizable && ( // [CUSTOMIZABLE v1]
+            <View style={styles.accordionContainer}>
+              <TouchableOpacity
+                style={styles.accordionHeader}
+                activeOpacity={0.8}
+                onPress={() => setIsCustomizationCollapsed(!isCustomizationCollapsed)}>
+                <View style={styles.accordionHeaderTitleRow}>
+                  <Feather name="edit-3" size={18} color="#FF6B00" style={styles.accordionIcon} />
+                  <Text style={styles.accordionHeaderTitle}>Personaliza tu Pastel</Text>
+                </View>
+                <Feather
+                  name={isCustomizationCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={20}
+                  color="#8E8E93"
                 />
-                <Text style={styles.inputHelper}>Máximo 60 caracteres. Se escribirá en la superficie.</Text>
+              </TouchableOpacity>
 
-                <Text style={styles.inputLabel}>Instrucciones especiales para repostería</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  placeholder="Ej: Por favor colocar las letras en color chocolate blanco..."
-                  placeholderTextColor="#8E8E93"
-                  value={cookingInstructions}
-                  onChangeText={setCookingInstructions}
-                  multiline
-                  numberOfLines={3}
-                  maxLength={200}
-                />
-              </View>
-            )}
-          </View>
+              {!isCustomizationCollapsed && (
+                <View style={styles.accordionBody}>
+                  <Text style={styles.inputLabel}>Dedicatoria o mensaje en el pastel</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Ej: ¡Feliz Cumpleaños Jairo! 🎉"
+                    placeholderTextColor="#8E8E93"
+                    value={customText}
+                    onChangeText={setCustomText}
+                    maxLength={60}
+                  />
+                  <Text style={styles.inputHelper}>Máximo 60 caracteres. Se escribirá en la superficie.</Text>
+
+                  <Text style={styles.inputLabel}>Instrucciones especiales para repostería</Text>
+                  <TextInput
+                    style={[styles.textInput, styles.textArea]}
+                    placeholder="Ej: Por favor colocar las letras en color chocolate blanco..."
+                    placeholderTextColor="#8E8E93"
+                    value={cookingInstructions}
+                    onChangeText={setCookingInstructions}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={200}
+                  />
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Complementos Extra */}
           <View style={styles.complementsSection}>

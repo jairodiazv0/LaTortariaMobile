@@ -437,7 +437,7 @@ export default function CartScreen() {
 
       const response = await fetch('https://www.latortaria.com/api/checkout/initiate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-platform': 'mobile' },
+        headers: { 'Content-Type': 'application/json' }, // [CHANNEL v1]
         body: JSON.stringify({
           cart: orderItems,
           shipping_address: {
@@ -452,6 +452,7 @@ export default function CartScreen() {
           guest_email: email.trim(),
           user_id: authenticatedUserId,
           coupon_id: appliedCouponId,
+          channel: 'mobile_app', // [CHANNEL v1]
         }),
       });
 

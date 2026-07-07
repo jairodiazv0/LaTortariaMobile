@@ -254,19 +254,23 @@ export default function HomeScreen() {
   useEffect(() => {
     const fetchWelcomeCoupon = async () => {
       try {
-        const { data, error } = await supabase
-          .from('coupons')
-          .select('code, discount_value, min_order_amount, is_active')
-          .eq('code', 'WELCOME_2026')
-          .eq('is_active', true)
-          .single();
-        if (!error && data) {
-          setWelcomeCoupon({
-            code: data.code,
-            benefit: Number(data.discount_value),
-            min_order_amount: Number(data.min_order_amount),
-          });
-        }
+        // [COUPONS-FIX v1] Corregido: discount_value e is_active viven en
+        // promotions, no en coupons. Join relacional real contra el schema.
+        const { data, error } = await supabase // [COUPONS-FIX v1]
+          .from('coupons') // [COUPONS-FIX v1]
+          .select('code, min_order_amount, expires_at, promotions!inner(discount_value, is_active)') // [COUPONS-FIX v1]
+          .eq('code', 'WELCOME_2026') // [COUPONS-FIX v1]
+          .eq('promotions.is_active', true) // [COUPONS-FIX v1]
+          .maybeSingle(); // [COUPONS-FIX v1]
+        if (!error && data) { // [COUPONS-FIX v1]
+          const now = new Date().toISOString(); // [COUPONS-FIX v1]
+          if (data.expires_at && new Date(data.expires_at) < new Date(now)) return; // [COUPONS-FIX v1]
+          setWelcomeCoupon({ // [COUPONS-FIX v1]
+            code: data.code, // [COUPONS-FIX v1]
+            benefit: Number((data.promotions as any)?.discount_value ?? 15000), // [COUPONS-FIX v1]
+            min_order_amount: Number(data.min_order_amount ?? 50000), // [COUPONS-FIX v1]
+          }); // [COUPONS-FIX v1]
+        } // [COUPONS-FIX v1]
       } catch (e) { }
     };
     fetchWelcomeCoupon();

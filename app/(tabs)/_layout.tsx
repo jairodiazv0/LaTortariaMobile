@@ -1,7 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons'; // Inyectamos Ionicons
 import { Platform } from 'react-native';
+import { useFavoritesStore } from '../../store/useFavoritesStore'; // Importamos el Store
 
 // ─── TOKENS VISUALES DE LA MARCA (Sincronizados con tu profile.tsx) ──────────
 const BRAND = {
@@ -15,14 +16,15 @@ const BRAND = {
 };
 
 export default function TabsLayout() {
+  // Suscripción reactiva al listado global de favoritos
+  const { favorites } = useFavoritesStore();
+  const hasFavorites = favorites.length > 0;
+
   return (
     <Tabs
       screenOptions={{
-        // Color del icono y texto cuando la pestaña está seleccionada
         tabBarActiveTintColor: '#2F6B4F',
-        // Color del icono y texto cuando la pestaña está inactiva
         tabBarInactiveTintColor: '#8E8E93',
-        // Estilización premium de la barra inferior de La Tortaría
         tabBarStyle: {
           backgroundColor: BRAND.white,
           borderTopWidth: 1,
@@ -36,7 +38,6 @@ export default function TabsLayout() {
           fontSize: 11,
           fontWeight: '600',
         },
-        // Ocultamos el header nativo de Expo para usar tus propios diseños limpios
         headerShown: false,
       }}
     >
@@ -54,13 +55,29 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Feather name="compass" size={size - 2} color={color} />,
         }}
       />
+      
+      {/* ─── PESTAÑA CORREGIDA: COMPORTAMIENTO DINÁMICO Y REACTIVO ─── */}
       <Tabs.Screen
         name="favorites"
         options={{
           title: 'Favoritos',
-          tabBarIcon: ({ color, size }) => <Feather name="heart" size={size - 2} color={color} />,
+          tabBarIcon: ({ focused, color, size }) => {
+            if (hasFavorites) {
+              // Si tiene elementos, se renderiza relleno y de color rojo vibrante
+              return <Ionicons name="heart" size={size} color="#FF3B30" />;
+            }
+            // Estado base por defecto cuando no hay favoritos guardados
+            return (
+              <Ionicons 
+                name={focused ? "heart" : "heart-outline"} 
+                size={size} 
+                color={color} 
+              />
+            );
+          },
         }}
       />
+
       <Tabs.Screen
         name="cart"
         options={{

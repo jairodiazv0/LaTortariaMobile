@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+// ─── IMPORTACIÓN DEL NUEVO STORE GLOBAL ──────────────────────────────────────
+import { useFavoritesStore } from '../../store/useFavoritesStore';
 
 const BRAND = {
   cream: '#FAF7F2',
@@ -16,85 +18,38 @@ const BRAND = {
   imagePlaceholder: '#EDEEF2',
 };
 
-interface FavoriteProduct {
-  id: string;
-  product_id: string;
-  name: string;
-  rating_avg: number | null;
-  coverUrl: string | null;
-  basePrice: number;
-}
-
 export default function FavoritesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // ─── CONSUMO DE ESTADO CENTRALIZADO ────────────────────────────────────────
+  // Reemplazamos los useState locales por la suscripción reactiva al store global
+  const { favorites, loading, fetchFavorites, clearFavorites } = useFavoritesStore();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const loadFavorites = useCallback(async (userId: string) => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('user_interactions')
-        .select(`
-          id,
-          product_id,
-          products (
-            name,
-            rating_avg,
-            product_variants ( price, is_active ),
-            product_media ( url, is_cover )
-          )
-        `)
-        .eq('user_id', userId)
-        .eq('interaction_type', 'favorite')
-        .order('created_at', { ascending: false });
-
-      if (!error && data) {
-        const mapped: FavoriteProduct[] = data.map((row: any) => {
-          const prod = row.products;
-          const cover = prod?.product_media?.find((m: any) => m.is_cover)?.url ?? prod?.product_media?.[0]?.url ?? null;
-          const activeVars = prod?.product_variants?.filter((v: any) => v.is_active) ?? [];
-          const price = activeVars.length > 0 ? Number(activeVars[0].price) : 0;
-
-          return {
-            id: row.id,
-            product_id: row.product_id,
-            name: prod?.name ?? 'Producto',
-            rating_avg: prod?.rating_avg ?? null,
-            coverUrl: cover,
-            basePrice: price,
-          };
-        });
-        setFavorites(mapped);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
+    // Sincronización inicial con la sesión de Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session?.user);
-      if (session?.user) loadFavorites(session.user.id);
-      else setLoading(false);
+      if (session?.user) {
+        fetchFavorites(session.user.id); // Ejecuta la query y el mapeo globalmente
+      }
     });
 
+    // Escuchador de cambios de autenticación
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session?.user);
-      if (session?.user) loadFavorites(session.user.id);
-      else {
-        setFavorites([]);
-        setLoading(false);
+      if (session?.user) {
+        fetchFavorites(session.user.id);
+      } else {
+        clearFavorites(); // Limpia el estado global si cierra sesión
       }
     });
 
     return () => authListener.subscription.unsubscribe();
-  }, [loadFavorites]);
+  }, [fetchFavorites, clearFavorites]);
 
+  // ─── CONTROL DE INTERFAZ DE CARGA (IDÉNTICO A TU ORIGINAL) ─────────────────
   if (loading) {
     return (
       <View style={[s.center, { paddingTop: insets.top }]}>
@@ -103,6 +58,7 @@ export default function FavoritesScreen() {
     );
   }
 
+  // ─── CONTROL DE USUARIO NO AUTENTICADO (IDÉNTICO A TU ORIGINAL) ────────────
   if (!isAuthenticated) {
     return (
       <View style={[s.center, { paddingTop: insets.top, paddingHorizontal: 32 }]}>
@@ -116,6 +72,7 @@ export default function FavoritesScreen() {
     );
   }
 
+  // ─── RENDERIZADO VISUAL PRINCIPAL (IDÉNTICO A TU ORIGINAL) ─────────────────
   return (
     <ScrollView style={s.root} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
       <Text style={s.screenTitle}>Mis Favoritos</Text>
@@ -155,6 +112,7 @@ export default function FavoritesScreen() {
   );
 }
 
+// ─── ARQUITECTURA DE ESTILOS (100% PRESERVADA) ───────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: BRAND.cream },
   center: { flex: 1, backgroundColor: BRAND.cream, alignItems: 'center', justifyContent: 'center', gap: 10 },

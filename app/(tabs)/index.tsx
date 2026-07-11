@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
@@ -27,6 +27,7 @@ import { BRAND as WEB_BRAND } from '@/constants/Colors';
 
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
+import { useNotificationStore } from '../../store/useNotificationStore';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -137,28 +138,68 @@ function HomeHeader({
   onSearchChange: (text: string) => void;
 }) {
   const router = useRouter();
-  const locationDate = useMemo(() => formatLocationDate(new Date()), []);
+
+  // Función para formatear la fecha actual al estilo premium de tu app ("Bogotá · Jueves")
+  const getFormattedDate = () => {
+    const opciones: Intl.DateTimeFormatOptions = { weekday: 'long' };
+    const diaSemana = new Intl.DateTimeFormat('es-CO', opciones).format(new Date());
+    const capitalizado = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+    return `Bogotá · ${capitalizado}`;
+  };
 
   const displayName = profileName || 'Invitado';
   const firstName = displayName.split(' ')[0];
   const initial = displayName.charAt(0).toUpperCase();
 
+  // ─── SELECTOR REACTIVO DE ZUSTAND (FIX DE LA CAMPANITA) ───────────────────
+  // Al apuntar directamente al tamaño filtrado del array, la UI cambia al instante 
+  // cuando abres el modal o cuando llega una push en tiempo real.
+  const unreadCount = useNotificationStore((state) => state.notifications.filter(n => !n.is_read).length);
+
   return (
     <View style={styles.header}>
       <View style={styles.headerTopRow}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.locationText}>{locationDate}</Text>
-          <Text style={styles.greetingText}>Buenas, {firstName}</Text>
-          <Text style={styles.guideQuestion}>¿Qué se te antoja hoy?</Text>
+        {/* Sección Izquierda: Saludo y Fecha */}
+        <View style={styles.leftSection}>
+          <Text style={styles.dateText}>{getFormattedDate()}</Text>
+          <Text style={styles.welcomeText}>Buenas, {firstName}</Text>
+          <Text style={styles.subtitleText}>¿Qué se te antoja hoy?</Text>
         </View>
-        {/* ── AVATAR INTERACTIVO CON INICIAL DINÁMICA ── */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => router.push('/(tabs)/profile')}
-          style={styles.avatar}
-        >
-          <Text style={styles.avatarInitial}>{initial}</Text>
-        </TouchableOpacity>
+
+        {/* Sección Derecha: Campanita Premium + Avatar */}
+        <View style={styles.rightSection}>
+          
+          {/* BOTÓN DE LA CAMPANITA */}
+          <TouchableOpacity 
+            style={styles.iconButton} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/modal')} // Abre el modal nativo existente temporalmente
+          >
+            <Ionicons 
+              name={unreadCount > 0 ? "notifications" : "notifications-outline"} 
+              size={24} 
+              color={BRAND.ink} 
+            />
+            
+            {/* BADGE DE NOTIFICACIONES PENDIENTES */}
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 9 ? '+9' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* AVATAR DEL USUARIO (Círculo con inicial) */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/profile')}
+            style={styles.avatarCircle}
+          >
+            <Text style={styles.avatarText}>{initial}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.searchRow}>
@@ -1043,38 +1084,78 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 20,
   },
-  headerCopy: {
+  leftSection: {
     flex: 1,
-    paddingRight: 16,
   },
-  locationText: {
+  dateText: {
     fontSize: 13,
     color: BRAND.textSecondary,
-    marginBottom: 6,
-  },
-  greetingText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: BRAND.textPrimary,
-    marginBottom: 4,
-  },
-  guideQuestion: {
-    fontSize: 16,
-    color: BRAND.textMuted,
     fontWeight: '500',
+    marginBottom: 2,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: WEB_BRAND.moss,
+  welcomeText: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: BRAND.ink,
+    lineHeight: 30,
+  },
+  subtitleText: {
+    fontSize: 15,
+    color: BRAND.textSecondary,
+    marginTop: 2,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 4,
+  },
+  iconButton: {
+    position: 'relative',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#FF3B30',
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2F6B4F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitial: {
-    fontSize: 20,
-    fontWeight: '700',
+  avatarText: {
     color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
   },
   searchRow: {
     flexDirection: 'row',

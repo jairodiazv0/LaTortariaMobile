@@ -196,6 +196,7 @@
 |-- constants
     |-- Colors.ts
 |-- hooks
+    |-- useCartAbandonmentNotification.ts
     |-- usePushPermissionRequest.ts
 |-- icons
     |-- APP_icon1.jpeg
@@ -205,6 +206,8 @@
     |-- supabase.ts
 |-- store
     |-- useCartStore.ts
+    |-- useFavoritesStore.ts
+    |-- useNotificationStore.ts
 |-- supabase_LaTortariaMobile
     |-- todas las tablas.sql
 |-- .gitignore

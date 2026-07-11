@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 1. Tipado de la personalización profunda de repostería
 export interface Customization {
@@ -41,8 +43,10 @@ interface CartState {
   setVerifyingPayment: (value: boolean) => void;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
-  items: [],
+export const useCartStore = create<CartState>()(
+  persist(
+    (set, get) => ({
+      items: [],
   isVerifyingPayment: false,
   setVerifyingPayment: (value) => set({ isVerifyingPayment: value }),
 
@@ -81,4 +85,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       return total + (item.base_price + addOnsTotal) * item.quantity;
     }, 0);
   },
+}), {
+  name: 'cart-storage',
+  storage: createJSONStorage(() => AsyncStorage),
 }));

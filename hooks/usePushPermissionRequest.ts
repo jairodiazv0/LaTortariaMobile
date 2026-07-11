@@ -20,6 +20,18 @@ export function usePushPermissionRequest() {
   };
 
   /**
+   * Marca manualmente como "ya preguntado" sin invocar la solicitud nativa.
+   * Útil cuando el usuario declina desde un soft-prompt o Alert previo.
+   */
+  const markPushPermissionAsked = async (): Promise<void> => {
+    try {
+      await SecureStore.setItemAsync('lt_push_permission_asked', 'true');
+    } catch (error) {
+      console.error('[PUSH v1] Error guardando flag en SecureStore:', error);
+    }
+  };
+
+  /**
    * Gestiona la solicitud de permisos, guarda localmente y sincroniza con Supabase.
    * ASIMETRÍA DE CASO DE BORDE v1: En iOS, expo-secure-store guarda los datos en el Keychain,
    * el cual sobrevive a desinstalaciones de la app. Si un usuario de iPhone reinstala la app,
@@ -32,6 +44,7 @@ export function usePushPermissionRequest() {
       // 1. Guard obligatorio para simuladores y emuladores
       if (!Device.isDevice) {
         console.log('[PUSH v1] Ejecución en simulador. Flujo omitido.');
+        await SecureStore.setItemAsync('lt_push_permission_asked', 'true');
         return 'skipped';
       }
 
@@ -50,6 +63,9 @@ export function usePushPermissionRequest() {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
+
+      // 👇 Se pregunta o ya se sabe la respuesta del SO: marca como "ya preguntado"
+      await SecureStore.setItemAsync('lt_push_permission_asked', 'true');
 
       if (finalStatus !== 'granted') {
         return 'denied';
@@ -93,5 +109,6 @@ export function usePushPermissionRequest() {
   return {
     checkPushEligibility,
     requestPushPermission,
+    markPushPermissionAsked,
   };
 }

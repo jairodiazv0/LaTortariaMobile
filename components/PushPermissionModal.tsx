@@ -3,11 +3,19 @@ import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface PushPermissionModalProps {
   visible: boolean;
+  title?: string;
+  body?: string;
   onAccept: () => void;
   onDecline: () => void;
 }
 
-export function PushPermissionModal({ visible, onAccept, onDecline }: PushPermissionModalProps) {
+export function PushPermissionModal({ 
+  visible, 
+  title = '¿Te avisamos cuando llegue tu pedido?',
+  body = 'Activa las notificaciones para recibir el estado de tu entrega en tiempo real.',
+  onAccept, 
+  onDecline 
+}: PushPermissionModalProps) {
   return (
     <Modal
       visible={visible}
@@ -16,9 +24,9 @@ export function PushPermissionModal({ visible, onAccept, onDecline }: PushPermis
       onRequestClose={onDecline}>
       <View style={styles.overlay}>
         <View style={styles.card}>
-          <Text style={styles.title}>¿Te avisamos cuando llegue tu pedido?</Text>
+          <Text style={styles.title}>{title}</Text>
           <Text style={styles.body}>
-            Activa las notificaciones para recibir el estado de tu entrega en tiempo real.
+            {body}
           </Text>
 
           <View style={styles.buttonContainer}>

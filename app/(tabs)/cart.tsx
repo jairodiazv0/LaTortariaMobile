@@ -206,6 +206,7 @@ export default function CartScreen() {
   const [neighborhood, setNeighborhood] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliverySlot, setDeliverySlot] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Cupones
   const [couponCode, setCouponCode] = useState('');
@@ -400,6 +401,7 @@ export default function CartScreen() {
     if (!neighborhood.trim()) { Alert.alert('Campo requerido', 'El barrio o indicaciones son obligatorios.'); return false; }
     if (!deliveryDate.trim()) { Alert.alert('Campo requerido', 'Selecciona una fecha de entrega.'); return false; }
     if (!deliverySlot.trim()) { Alert.alert('Campo requerido', 'Selecciona una franja horaria de entrega.'); return false; }
+    if (!termsAccepted) { Alert.alert('Términos y condiciones', 'Debes aceptar los términos y condiciones para continuar con tu pedido.'); return false; }
     return true;
   };
 
@@ -453,6 +455,7 @@ export default function CartScreen() {
           user_id: authenticatedUserId,
           coupon_id: appliedCouponId,
           channel: 'mobile_app', // [CHANNEL v1]
+          terms_accepted: termsAccepted,
         }),
       });
 
@@ -866,11 +869,50 @@ export default function CartScreen() {
             ))}
           </View>
         </View>
+
+        {/* Aceptación de Términos y Condiciones */}
+        <TouchableOpacity
+          style={styles.termsRow}
+          activeOpacity={0.8}
+          onPress={() => setTermsAccepted((v) => !v)}
+        >
+          <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+            {termsAccepted && <Feather name="check" size={14} color="#FFFFFF" />}
+          </View>
+          <Text style={styles.termsText}>
+            He leído y acepto los{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={(e) => {
+                e.stopPropagation();
+                WebBrowser.openBrowserAsync('https://www.latortaria.com/terminos-y-condiciones');
+              }}
+            >
+              Términos y Condiciones
+            </Text>
+            {' '}y la{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={(e) => {
+                e.stopPropagation();
+                WebBrowser.openBrowserAsync('https://www.latortaria.com/politica-de-privacidad');
+              }}
+            >
+              Política de Privacidad
+            </Text>
+            {' '}de La Tortaria.
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Botón fijo de pago */}
       <View style={[styles.checkoutBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity style={styles.checkoutButton} activeOpacity={0.88} onPress={handleConfirmAndPay}>
+        <TouchableOpacity
+          style={[styles.checkoutButton, !termsAccepted && styles.checkoutButtonDisabled]}
+          activeOpacity={0.88}
+          onPress={handleConfirmAndPay}
+          disabled={!termsAccepted}
+        >
           <Text style={styles.checkoutButtonText}>Pagar {formatCOP(total)}</Text>
           <Feather name="credit-card" size={18} color="#FFFFFF" />
         </TouchableOpacity>
@@ -957,9 +999,17 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 20, fontWeight: '900', color: BRAND.orange },
   freeShippingHint: { fontSize: 12, color: BRAND.textSecondary, textAlign: 'center', marginTop: 2 },
 
+  // Checkbox de Términos y Condiciones
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: BRAND.surface, borderRadius: 14, borderWidth: 1, borderColor: BRAND.border, padding: 14, marginTop: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: BRAND.border, alignItems: 'center', justifyContent: 'center', marginTop: 1, backgroundColor: BRAND.background },
+  checkboxChecked: { backgroundColor: BRAND.orange, borderColor: BRAND.orange },
+  termsText: { flex: 1, fontSize: 13, color: BRAND.textMuted, lineHeight: 19 },
+  termsLink: { color: BRAND.orange, fontWeight: '700', textDecorationLine: 'underline' },
+
   // Checkout bar
   checkoutBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: BRAND.surface, borderTopWidth: 1, borderTopColor: BRAND.border, paddingTop: 14, paddingHorizontal: 20, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 10 },
   checkoutButton: { backgroundColor: BRAND.orange, borderRadius: 16, height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: BRAND.orange, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
+  checkoutButtonDisabled: { opacity: 0.45 },
   checkoutButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
 
   // Formulario de entrega

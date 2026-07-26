@@ -188,19 +188,32 @@ function RootLayoutNav() {
 
       // ── CASO 1: Callback de verificación de correo / OAuth de Supabase ──
       if (url.includes('latortariamobile://auth/callback')) {
-        const params = extractParamsFromHash(url);
+        // Flujo PKCE (activo desde que supabase.ts usa flowType: 'pkce'):
+        // Google / verificación de email / redirigen con ?code=xxxx
+        const { queryParams } = Linking.parse(url);
+        const code = typeof queryParams?.code === 'string' ? queryParams.code : undefined;
 
-        if (params?.access_token && params?.refresh_token) {
-          const { error } = await supabase.auth.setSession({
-            access_token: params.access_token,
-            refresh_token: params.refresh_token,
-          });
-
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error && __DEV__) {
-            console.warn('[Auth] setSession error:', error.message);
+            console.warn('[Auth] exchangeCodeForSession error:', error.message);
           }
         } else {
-          await supabase.auth.getSession();
+          // Fallback de compatibilidad: flujo implícito antiguo (#access_token=...)
+          const params = extractParamsFromHash(url);
+
+          if (params?.access_token && params?.refresh_token) {
+            const { error } = await supabase.auth.setSession({
+              access_token: params.access_token,
+              refresh_token: params.refresh_token,
+            });
+
+            if (error && __DEV__) {
+              console.warn('[Auth] setSession error:', error.message);
+            }
+          } else {
+            await supabase.auth.getSession();
+          }
         }
 
         // Redirigir al panel de cuenta para que el usuario vea su sesión activa.

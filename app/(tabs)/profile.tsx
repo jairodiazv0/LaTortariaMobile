@@ -294,7 +294,11 @@ export default function ProfileScreen() {
   // pendingAuthAction: qué flujo se ejecutará cuando el token llegue.
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [showTurnstile, setShowTurnstile] = useState(false);
-  const [pendingAuthAction, setPendingAuthAction] = useState<'login' | 'register' | null>(null);
+  const [pendingAuthAction, setPendingAuthAction] = useState<'login' | 'register' | 'reset' | null>(null);
+
+  // ── Recuperación de contraseña ─────────────────────────────────────────────
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
 
   // ── Cupón de bienvenida — carga dinámica desde Supabase ────────────────────
   const [welcomeCoupon, setWelcomeCoupon] = useState<WelcomeCoupon | null>(null);
@@ -621,7 +625,26 @@ export default function ProfileScreen() {
 
     setSubmitting(true);
     try {
-      if (pendingAuthAction === 'login') {
+      if (pendingAuthAction === 'reset') {
+        // ── RECUPERACIÓN DE CONTRASEÑA con captchaToken ─────────────────
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          forgotPasswordEmail.trim().toLowerCase(),
+          {
+            captchaToken: token,
+            redirectTo: 'https://www.latortaria.com/auth/mobile-reset-bridge',
+          }
+        );
+
+        if (error) {
+          Alert.alert('Error', error.message);
+        } else {
+          Alert.alert(
+            'Revisa tu correo',
+            'Te enviamos un enlace para recuperar tu contraseña. Ábrelo desde tu teléfono.'
+          );
+        }
+
+      } else if (pendingAuthAction === 'login') {
         // ── LOGIN con captchaToken ──────────────────────────────────────
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim().toLowerCase(),
@@ -998,6 +1021,68 @@ export default function ProfileScreen() {
           </View>
         </Modal>
 
+        {/* ── MODAL DE RECUPERACIÓN DE CONTRASEÑA ────────────────────────── */}
+        <Modal
+          visible={showForgotPasswordModal}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setShowForgotPasswordModal(false)}
+        >
+          <View style={s.modalOverlay}>
+            <View style={s.modalCard}>
+              <Text style={s.modalEmoji}>🔐</Text>
+              <Text style={s.modalTitle}>¿Olvidaste tu contraseña?</Text>
+              <Text style={s.modalBody}>
+                Ingresa tu correo y te enviaremos un enlace para recuperar tu cuenta.
+              </Text>
+
+              <View style={[s.inputGroup, { width: '100%', marginTop: 8 }]}>
+                <Text style={s.inputLabel}>Correo electrónico</Text>
+                <View style={s.inputWrapper}>
+                  <Feather name="mail" size={16} color={BRAND.inkLight} style={s.inputIcon} />
+                  <TextInput
+                    style={s.input}
+                    placeholder="correo@ejemplo.com"
+                    placeholderTextColor={BRAND.inkLight}
+                    value={forgotPasswordEmail}
+                    onChangeText={setForgotPasswordEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[s.primaryButton, { width: '100%', marginTop: 16 }]}
+                onPress={() => {
+                  const emailError = validateEmail(forgotPasswordEmail);
+                  if (emailError) {
+                    Alert.alert('Correo inválido', emailError);
+                    return;
+                  }
+                  setShowForgotPasswordModal(false);
+                  setPendingAuthAction('reset');
+                  setShowTurnstile(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.primaryButtonText}>Enviar enlace de recuperación</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ marginTop: 12, padding: 8 }}
+                onPress={() => setShowForgotPasswordModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: BRAND.inkMid, fontSize: 14, fontWeight: '500' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         {/* ── MODAL DE BIENVENIDA POST-REGISTRO ──────────────────────────── */}
         <Modal
           visible={showWelcomeModal}
@@ -1131,7 +1216,20 @@ export default function ProfileScreen() {
             )}
             {/* Password con toggle */}
             <View style={s.inputGroup}>
-              <Text style={s.inputLabel}>Contraseña</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={s.inputLabel}>Contraseña</Text>
+                {authMode === 'login' && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setForgotPasswordEmail(email);
+                      setShowForgotPasswordModal(true);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={s.forgotPasswordLink}>¿Olvidaste tu contraseña?</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <View style={s.inputWrapper}>
                 <Feather name="lock" size={16} color={BRAND.inkLight} style={s.inputIcon} />
                 <TextInput
@@ -1141,8 +1239,8 @@ export default function ProfileScreen() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
-                  autoCapitalize="none"          // ← AGREGAR ESTA LÍNEA
-                  autoCorrect={false}            // ← Y esta, por seguridad extra
+                  autoCapitalize="none"
+                  autoCorrect={false}
                   returnKeyType="done"
                   onSubmitEditing={authMode === 'login' ? handleLogin : handleRegister}
                 />
@@ -1730,6 +1828,7 @@ const s = StyleSheet.create({
   form: { gap: 4 },
   inputGroup: { marginBottom: 16 },
   inputLabel: { fontFamily: BRAND.fontBody, fontSize: 13, fontWeight: '600', color: BRAND.inkMid, marginBottom: 6, letterSpacing: 0.2 },
+  forgotPasswordLink: { fontFamily: BRAND.fontBody, fontSize: 12, color: BRAND.rose, fontWeight: '600' },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: BRAND.roseLight, borderRadius: BRAND.radiusSm, borderWidth: 1, borderColor: BRAND.divider, paddingHorizontal: 12, height: 50 },
   inputIcon: { marginRight: 10 },
   input: { flex: 1, fontFamily: BRAND.fontBody, fontSize: 15, color: BRAND.ink, height: '100%' },

@@ -41,6 +41,16 @@ module.exports = {
             path: "/result"
           },
           launchMode: "singleTask"
+        },
+        {
+          action: "VIEW",
+          category: ["BROWSABLE", "DEFAULT"],
+          data: {
+            scheme: "latortariamobile",
+            host: "auth",
+            path: "/reset-password"
+          },
+          launchMode: "singleTask"
         }
       ]
     },

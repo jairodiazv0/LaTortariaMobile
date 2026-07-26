@@ -27,6 +27,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { TurnstileWidget } from '@/components/TurnstileWidget';
 import {
   View,
   Text,
@@ -287,6 +288,14 @@ export default function ProfileScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
+  // ── CAPTCHA Cloudflare Turnstile ───────────────────────────────────────────
+  // captchaToken: token recibido de Turnstile, válido por un solo uso.
+  // showTurnstile: controla visibilidad del Modal con el widget.
+  // pendingAuthAction: qué flujo se ejecutará cuando el token llegue.
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [showTurnstile, setShowTurnstile] = useState(false);
+  const [pendingAuthAction, setPendingAuthAction] = useState<'login' | 'register' | null>(null);
+
   // ── Cupón de bienvenida — carga dinámica desde Supabase ────────────────────
   const [welcomeCoupon, setWelcomeCoupon] = useState<WelcomeCoupon | null>(null);
 
@@ -540,6 +549,7 @@ export default function ProfileScreen() {
   // REGISTRO
   // ─────────────────────────────────────────────────────────────────────────
   const handleRegister = async () => {
+    // ── Validaciones (se mantienen intactas) ──────────────────────────────
     if (!fullName.trim() || fullName.trim().length < 2)
       return Alert.alert('Nombre requerido', 'Ingresa tu nombre completo (mínimo 2 caracteres).');
     const emailError = validateEmail(email);
@@ -549,43 +559,9 @@ export default function ProfileScreen() {
     if (password.length < 6)
       return Alert.alert('Contraseña muy corta', 'La contraseña debe tener al menos 6 caracteres.');
 
-    setSubmitting(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: {
-          data: { full_name: fullName.trim(), phone: phone.trim() || null },
-          emailRedirectTo: 'latortariamobile://auth/callback',
-        },
-      });
-
-      if (error) { Alert.alert('Error al registrarse', error.message); return; }
-
-      if (data.session === null && (data.user?.identities?.length ?? 0) === 0) {
-        Alert.alert('Cuenta existente', 'Ya tienes una cuenta con este correo. Por favor, inicia sesión.');
-        setAuthMode('login');
-        return;
-      }
-
-      if (data.session === null) {
-        Alert.alert('¡Casi listo!', 'Te enviamos un correo de verificación. Revísalo para activar tu cuenta y vuelve a iniciar sesión.');
-        return;
-      }
-
-      if (data.user) {
-        // 🎉 Disparar celebración ANTES del upsert de perfil
-        setShowCelebration(true);
-        setShowWelcomeModal(true);
-
-        await supabase.from('profiles').upsert(
-          { id: data.user.id, full_name: fullName.trim(), phone: phone.trim() || null },
-          { onConflict: 'id' }
-        );
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    // ── Validaciones OK: solicitar token CAPTCHA antes de llamar a Supabase ─
+    setPendingAuthAction('register');
+    setShowTurnstile(true);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -622,24 +598,107 @@ export default function ProfileScreen() {
   // LOGIN
   // ─────────────────────────────────────────────────────────────────────────
   const handleLogin = async () => {
+    // ── Validaciones (se mantienen intactas) ──────────────────────────────
     const emailError = validateEmail(email);
     if (emailError) return Alert.alert('Correo inválido', emailError);
     if (!password) return Alert.alert('Contraseña requerida', 'Ingresa tu contraseña.');
 
+    // 🔍 DEBUG TEMPORAL
+    console.log('[DEBUG handleLogin] email:', JSON.stringify(email));
+    console.log('[DEBUG handleLogin] password length:', password.length);
+    console.log('[DEBUG handleLogin] password (primeros/últimos chars):', password[0], '...', password[password.length - 1]);
+
+    setPendingAuthAction('login');
+    setShowTurnstile(true);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // EJECUTAR AUTH CON TOKEN CAPTCHA
+  // Se dispara cuando TurnstileWidget llama a onSuccess(token).
+  // Según pendingAuthAction, llama al endpoint correcto de Supabase incluyendo
+  // el captchaToken. Reutiliza la lógica de error/éxito de los handlers originales.
+  // Los tokens de Turnstile son de un solo uso: se resetean al finalizar.
+  // ─────────────────────────────────────────────────────────────────────────
+  const executeAuthWithCaptcha = async (token: string) => {
+    // Guardar token y ocultar el widget
+    setCaptchaToken(token);
+    setShowTurnstile(false);
+
+    // 🔍 DEBUG TEMPORAL
+    console.log('[DEBUG executeAuthWithCaptcha] pendingAuthAction:', pendingAuthAction);
+    console.log('[DEBUG executeAuthWithCaptcha] email a enviar:', JSON.stringify(email.trim().toLowerCase()));
+    console.log('[DEBUG] password JSON.stringify:', JSON.stringify(password));
+    console.log('[DEBUG] password char codes:', password.split('').map(c => c.charCodeAt(0)));
+    console.log('[DEBUG executeAuthWithCaptcha] token (primeros 20 chars):', token.substring(0, 20));
+
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(), password,
-      });
-      if (error) {
-        if (error.message.includes('Invalid login credentials'))
-          Alert.alert('Credenciales incorrectas', 'El correo o la contraseña no coinciden.');
-        else if (error.message.includes('Email not confirmed'))
-          Alert.alert('Correo sin verificar', 'Revisa tu bandeja y confirma tu correo antes de ingresar.');
-        else Alert.alert('Error', error.message);
+      if (pendingAuthAction === 'login') {
+        // ── LOGIN con captchaToken ──────────────────────────────────────
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+          options: { captchaToken: token },
+        });
+
+        // 🔍 DEBUG TEMPORAL — imprimir el error COMPLETO sin filtrar
+        if (error) {
+          console.log('[DEBUG] error.message COMPLETO:', error.message);
+          console.log('[DEBUG] error.status:', error.status);
+          console.log('[DEBUG] error completo:', JSON.stringify(error, null, 2));
+        }
+
+        if (error) {
+          if (error.message.includes('Invalid login credentials'))
+            Alert.alert('Credenciales incorrectas', 'El correo o la contraseña no coinciden.');
+          else if (error.message.includes('Email not confirmed'))
+            Alert.alert('Correo sin verificar', 'Revisa tu bandeja y confirma tu correo antes de ingresar.');
+          else Alert.alert('Error', error.message);
+        }
+        // Si es exitoso: onAuthStateChange(SIGNED_IN) actualiza la UI.
+
+      } else if (pendingAuthAction === 'register') {
+        // ── REGISTRO con captchaToken ───────────────────────────────────
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim().toLowerCase(),
+          password,
+          options: {
+            data: { full_name: fullName.trim(), phone: phone.trim() || null },
+            emailRedirectTo: 'latortariamobile://auth/callback',
+            captchaToken: token,
+          },
+        });
+
+        if (error) { Alert.alert('Error al registrarse', error.message); return; }
+
+        if (data.session === null && (data.user?.identities?.length ?? 0) === 0) {
+          Alert.alert('Cuenta existente', 'Ya tienes una cuenta con este correo. Por favor, inicia sesión.');
+          setAuthMode('login');
+          return;
+        }
+
+        if (data.session === null) {
+          Alert.alert('¡Casi listo!', 'Te enviamos un correo de verificación. Revísalo para activar tu cuenta y vuelve a iniciar sesión.');
+          return;
+        }
+
+        if (data.user) {
+          // 🎉 Disparar celebración ANTES del upsert de perfil
+          setShowCelebration(true);
+          setShowWelcomeModal(true);
+
+          await supabase.from('profiles').upsert(
+            { id: data.user.id, full_name: fullName.trim(), phone: phone.trim() || null },
+            { onConflict: 'id' }
+          );
+        }
       }
     } finally {
       setSubmitting(false);
+      // Resetear siempre: tokens de Turnstile son de un solo uso.
+      // Un siguiente intento generará un token nuevo.
+      setPendingAuthAction(null);
+      setCaptchaToken(null);
     }
   };
 
@@ -922,6 +981,42 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* ── MODAL DE VERIFICACIÓN CAPTCHA (Cloudflare Turnstile) ──────── */}
+        {/* Solo aparece en flujos correo/contraseña — NO en Google ni Apple. */}
+        <Modal
+          visible={showTurnstile}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => { setShowTurnstile(false); setPendingAuthAction(null); }}
+        >
+          <View style={s.modalOverlay}>
+            <View style={[s.modalCard, { paddingTop: 20, paddingBottom: 16, paddingHorizontal: 10, maxWidth: 340 }]}>
+              <Text style={[s.modalTitle, { fontSize: 14, marginBottom: 4 }]}>Verificando que eres humana 🛡️</Text>
+              <Text style={[s.modalBody, { marginBottom: 14 }]}>Esto solo toma un momento.</Text>
+
+              <TurnstileWidget
+                onSuccess={executeAuthWithCaptcha}
+                onError={(msg) =>
+                  Alert.alert(
+                    'Verificación fallida',
+                    msg + '\n\nRevisa tu conexión a internet e intenta de nuevo.',
+                  )
+                }
+              />
+
+              {/* Botón de escape para que el usuario no quede atrapado */}
+              <TouchableOpacity
+                style={{ marginTop: 10, alignSelf: 'center', padding: 8 }}
+                onPress={() => { setShowTurnstile(false); setPendingAuthAction(null); }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: '#A8917E', fontSize: 13, fontWeight: '500' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         {/* ── MODAL DE BIENVENIDA POST-REGISTRO ──────────────────────────── */}
         <Modal
           visible={showWelcomeModal}
@@ -1065,6 +1160,8 @@ export default function ProfileScreen() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
+                  autoCapitalize="none"          // ← AGREGAR ESTA LÍNEA
+                  autoCorrect={false}            // ← Y esta, por seguridad extra
                   returnKeyType="done"
                   onSubmitEditing={authMode === 'login' ? handleLogin : handleRegister}
                 />

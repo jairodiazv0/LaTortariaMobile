@@ -6,7 +6,7 @@
 
 module.exports = {
   expo: {
-    name: "LaTortariaMobile",
+    name: "LaTortaria",
     slug: "LaTortariaMobile",
     version: "1.0.0",
     orientation: "portrait",

@@ -1,16 +1,17 @@
+import 'react-native-url-polyfill/auto';  // ← Polyfill URL para React Native / Expo
 import * as SecureStore from 'expo-secure-store';
 import { createClient } from '@supabase/supabase-js';
 
 // 🛡️ El adaptador secreto: Guarda el token cifrado directamente en el llavero del iPhone/Android
 const ExpoSecureStoreAdapter = {
     getItem: (key: string) => {
-    return SecureStore.getItemAsync(key);
+        return SecureStore.getItemAsync(key);
     },
     setItem: (key: string, value: string) => {
-    return SecureStore.setItemAsync(key, value);
+        return SecureStore.setItemAsync(key, value);
     },
     removeItem: (key: string) => {
-    return SecureStore.deleteItemAsync(key);
+        return SecureStore.deleteItemAsync(key);
     },
 };
 

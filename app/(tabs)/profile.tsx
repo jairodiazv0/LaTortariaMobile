@@ -603,11 +603,6 @@ export default function ProfileScreen() {
     if (emailError) return Alert.alert('Correo inválido', emailError);
     if (!password) return Alert.alert('Contraseña requerida', 'Ingresa tu contraseña.');
 
-    // 🔍 DEBUG TEMPORAL
-    console.log('[DEBUG handleLogin] email:', JSON.stringify(email));
-    console.log('[DEBUG handleLogin] password length:', password.length);
-    console.log('[DEBUG handleLogin] password (primeros/últimos chars):', password[0], '...', password[password.length - 1]);
-
     setPendingAuthAction('login');
     setShowTurnstile(true);
   };
@@ -624,13 +619,6 @@ export default function ProfileScreen() {
     setCaptchaToken(token);
     setShowTurnstile(false);
 
-    // 🔍 DEBUG TEMPORAL
-    console.log('[DEBUG executeAuthWithCaptcha] pendingAuthAction:', pendingAuthAction);
-    console.log('[DEBUG executeAuthWithCaptcha] email a enviar:', JSON.stringify(email.trim().toLowerCase()));
-    console.log('[DEBUG] password JSON.stringify:', JSON.stringify(password));
-    console.log('[DEBUG] password char codes:', password.split('').map(c => c.charCodeAt(0)));
-    console.log('[DEBUG executeAuthWithCaptcha] token (primeros 20 chars):', token.substring(0, 20));
-
     setSubmitting(true);
     try {
       if (pendingAuthAction === 'login') {
@@ -640,13 +628,6 @@ export default function ProfileScreen() {
           password,
           options: { captchaToken: token },
         });
-
-        // 🔍 DEBUG TEMPORAL — imprimir el error COMPLETO sin filtrar
-        if (error) {
-          console.log('[DEBUG] error.message COMPLETO:', error.message);
-          console.log('[DEBUG] error.status:', error.status);
-          console.log('[DEBUG] error completo:', JSON.stringify(error, null, 2));
-        }
 
         if (error) {
           if (error.message.includes('Invalid login credentials'))

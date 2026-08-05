@@ -1,5 +1,5 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { BRAND } from '@/constants/Colors';
 
@@ -8,7 +8,7 @@ interface CategoryStripProps {
     id: string;
     name: string;
     slug: string;
-    image_url?: string | null;
+    image_url?: string | null; // Lo mantenemos en la interfaz para no romper componentes padre
   }>;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -23,46 +23,41 @@ export function CategoryStrip({ categories, selectedId, onSelect }: CategoryStri
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
+
+        {/* Botón de "Todos" */}
         <TouchableOpacity
-          style={styles.cardWrapper}
-          activeOpacity={0.85}
+          style={[
+            styles.chip,
+            selectedId === null ? styles.chipActive : styles.chipInactive,
+          ]}
+          activeOpacity={0.8}
           onPress={() => onSelect(null)}>
-          <View
+          <Text
             style={[
-              styles.card,
-              styles.allCard,
-              selectedId === null && styles.cardSelected,
+              styles.label,
+              selectedId === null ? styles.labelActive : styles.labelInactive,
             ]}>
-            <Text style={styles.allLabel}>Todos</Text>
-          </View>
-          <Text style={[styles.label, selectedId === null && styles.labelActive]}>Todos</Text>
+            Todos
+          </Text>
         </TouchableOpacity>
 
+        {/* Lista dinámica de categorías */}
         {categories.map((cat) => {
           const isSelected = selectedId === cat.id;
           return (
             <TouchableOpacity
               key={cat.id}
-              style={styles.cardWrapper}
-              activeOpacity={0.85}
+              style={[
+                styles.chip,
+                isSelected ? styles.chipActive : styles.chipInactive,
+              ]}
+              activeOpacity={0.8}
               onPress={() => onSelect(isSelected ? null : cat.id)}>
-              <View style={[styles.card, isSelected && styles.cardSelected]}>
-                {cat.image_url ? (
-                  <>
-                    <Image source={{ uri: cat.image_url }} style={styles.cardImage} resizeMode="cover" />
-                    <View style={styles.imageOverlay} />
-                  </>
-                ) : (
-                  <LinearGradient
-                    colors={[BRAND.moss, BRAND.ink]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientFallback}>
-                    <Text style={styles.initial}>{cat.name.charAt(0).toUpperCase()}</Text>
-                  </LinearGradient>
-                )}
-              </View>
-              <Text style={[styles.label, isSelected && styles.labelActive]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.label,
+                  isSelected ? styles.labelActive : styles.labelInactive,
+                ]}>
                 {cat.name}
               </Text>
             </TouchableOpacity>
@@ -73,68 +68,41 @@ export function CategoryStrip({ categories, selectedId, onSelect }: CategoryStri
   );
 }
 
-const CARD_SIZE = 88;
-
 const styles = StyleSheet.create({
   wrapper: {
     marginTop: 16,
+    marginBottom: 8, // Un poco de espacio antes de los productos
   },
   scrollContent: {
     paddingHorizontal: 16,
-    gap: 10,
-  },
-  cardWrapper: {
+    gap: 8, // Espaciado moderno y compacto entre píldoras
     alignItems: 'center',
-    maxWidth: CARD_SIZE,
   },
-  card: {
-    width: CARD_SIZE,
-    height: CARD_SIZE,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 2.5,
-    borderColor: 'transparent',
-  },
-  cardSelected: {
-    borderColor: BRAND.lime,
-  },
-  allCard: {
-    backgroundColor: BRAND.ink,
+  chip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 50, // Borde completamente redondeado (ovalado)
+    borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  allLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  chipActive: {
+    backgroundColor: BRAND.ink, // Color oscuro de tu marca
+    borderColor: BRAND.ink,
   },
-  cardImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imageOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  gradientFallback: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initial: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  chipInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E5E5EA', // Borde sutil
   },
   label: {
-    marginTop: 6,
-    fontSize: 10,
-    fontWeight: '700',
-    color: BRAND.ink,
-    textAlign: 'center',
-    maxWidth: CARD_SIZE,
+    fontSize: 14,
+    fontWeight: '600',
   },
   labelActive: {
-    color: BRAND.moss,
+    color: '#FFFFFF', // Texto blanco cuando está seleccionado
+  },
+  labelInactive: {
+    color: BRAND.ink, // Texto oscuro cuando está inactivo
   },
 });

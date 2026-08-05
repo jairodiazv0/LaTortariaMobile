@@ -1,17 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Dimensions,
-  Easing,
   Image,
-  Modal,
-  Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -19,7 +14,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
@@ -33,6 +27,12 @@ interface DBProductVariant {
   compare_at_price: number | null;
   is_active: boolean;
   sku: string;
+  // Agregamos la relación correcta según tu esquema de base de datos
+  product_variant_options?: {
+    product_option_values: {
+      value: string;
+    } | null;
+  }[];
 }
 
 interface DBProductMedia {
@@ -55,7 +55,7 @@ interface DBProduct {
   category_id: string;
   short_description?: string;
   long_description?: string;
-  is_customizable: boolean; // [CUSTOMIZABLE v1]
+  is_customizable: boolean;
   product_variants: DBProductVariant[];
   product_media: DBProductMedia[];
 }
@@ -76,11 +76,6 @@ interface AddOnOption {
   price: number;
 }
 
-const COMPLEMENTS: AddOnOption[] = [
-  { id: 'velas', name: 'Velas de cumpleaños', price: 3000 },
-  { id: 'tarjeta', name: 'Tarjeta dedicatoria', price: 0 },
-];
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
@@ -89,13 +84,14 @@ function formatCOP(price: number): string {
   return `$${price.toLocaleString('es-CO')}`;
 }
 
-function getVariantLabel(sku: string, index: number): string {
-  const match = sku.match(/(\d+)\s*(p|porciones|por)/i);
-  if (match) return `${match[1]} porciones`;
-  if (sku.toLowerCase().includes('individual')) return 'Individual';
-  if (sku.toLowerCase().includes('mediano')) return 'Mediano';
-  if (sku.toLowerCase().includes('grande')) return 'Grande';
-  return `Tamaño ${index + 1}`;
+// Nueva función para extraer el nombre real viajando por las tablas relacionadas
+function getVariantName(variant: DBProductVariant): string {
+  const options = variant.product_variant_options;
+  if (options && options.length > 0) {
+    const realValue = options[0]?.product_option_values?.value;
+    if (realValue) return realValue;
+  }
+  return variant.sku; // Fallback elegante en caso de que falte el dato
 }
 
 export default function ProductDetailScreen() {
@@ -126,7 +122,6 @@ export default function ProductDetailScreen() {
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const imageScrollRef = useRef<ScrollView>(null);
 
-
   useEffect(() => {
     const fetchWelcomeCoupon = async () => {
       try {
@@ -156,8 +151,9 @@ export default function ProductDetailScreen() {
         setLoading(true);
         setError(null);
 
-        // 0. Verificar sesión activa y estado de favorito para este producto
+        // 0. Verificar sesión activa
         const { data: { session } } = await supabase.auth.getSession();
+        setCurrentUser(session?.user || null);
         if (session?.user) {
           setUserId(session.user.id);
 
@@ -194,7 +190,12 @@ export default function ProductDetailScreen() {
               price,
               compare_at_price,
               is_active,
-              sku
+              sku,
+              product_variant_options (
+                product_option_values (
+                  value
+                )
+              )
             ),
             product_media (
               id,
@@ -214,13 +215,12 @@ export default function ProductDetailScreen() {
         const typedProd = prodData as unknown as DBProduct;
         setProduct(typedProd);
 
-        // Seleccionar variante por defecto (primera variante activa)
         const activeVariants = typedProd.product_variants.filter((v) => v.is_active);
         if (activeVariants.length > 0) {
           setSelectedVariant(activeVariants[0]);
         }
 
-        // 2. Obtener productos recomendados de la misma categoría
+        // 2. Obtener productos recomendados
         if (typedProd.category_id) {
           const { data: relData, error: relError } = await supabase
             .from('products')
@@ -311,11 +311,10 @@ export default function ProductDetailScreen() {
     }
 
     const nextState = !isFavorite;
-    setIsFavorite(nextState); // Actualización optimista instantánea para excelente UX
+    setIsFavorite(nextState);
 
     try {
       if (nextState) {
-        // Guardar en favoritos
         const { error } = await supabase
           .from('user_interactions')
           .insert({
@@ -325,7 +324,6 @@ export default function ProductDetailScreen() {
           });
         if (error) throw error;
       } else {
-        // Eliminar de favoritos
         const { error } = await supabase
           .from('user_interactions')
           .delete()
@@ -335,19 +333,10 @@ export default function ProductDetailScreen() {
         if (error) throw error;
       }
     } catch (err: any) {
-      setIsFavorite(!nextState); // Revertir el estado visual si la red falla
+      setIsFavorite(!nextState);
       console.error('Error actualizando favoritos:', err);
       Alert.alert('Error', 'No pudimos procesar la solicitud en tus favoritos. Intenta nuevamente.');
     }
-  };
-
-
-  const handleToggleAddOn = (addon: AddOnOption) => {
-    setSelectedAddOns((prev) =>
-      prev.some((item) => item.id === addon.id)
-        ? prev.filter((item) => item.id !== addon.id)
-        : [...prev, addon]
-    );
   };
 
   const handleAddToCart = () => {
@@ -360,7 +349,7 @@ export default function ProductDetailScreen() {
       product_id: product.id,
       variant_id: selectedVariant.id,
       name: product.name,
-      size_label: getVariantLabel(selectedVariant.sku, 0),
+      size_label: getVariantName(selectedVariant), // <-- Usamos la nueva función 
       base_price: Number(selectedVariant.price),
       quantity,
       customization: {
@@ -375,7 +364,6 @@ export default function ProductDetailScreen() {
       image_url: coverImage?.url,
     });
 
-    // Redirigir a la pestaña del carrito
     router.push('/(tabs)/cart');
   };
 
@@ -401,9 +389,7 @@ export default function ProductDetailScreen() {
     );
   }
 
-  // Filtrar variantes activas
   const activeVariants = product.product_variants.filter((v) => v.is_active);
-  // Obtener imágenes
   const productImages = product.product_media.filter((m) => m.type === 'image');
 
   return (
@@ -418,11 +404,9 @@ export default function ProductDetailScreen() {
         }}
       />
       <ScrollView
-
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}>
 
-        {/* Cabecera / Galería de fotos */}
         <View style={styles.galleryWrapper}>
           {productImages.length > 0 ? (
             <ScrollView
@@ -451,7 +435,6 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {/* Indicadores de paginación */}
           {productImages.length > 1 && (
             <View style={styles.paginationDots}>
               {productImages.map((_, i) => (
@@ -466,7 +449,6 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {/* Botones de acción flotantes sobre imagen */}
           <View style={[styles.floatingHeader, { paddingTop: Math.max(insets.top, 16) }]}>
             <TouchableOpacity
               style={styles.floatingButton}
@@ -518,7 +500,6 @@ export default function ProductDetailScreen() {
           </ScrollView>
         )}
 
-        {/* Detalles Base */}
         <View style={styles.body}>
           <View style={styles.metaRow}>
             {product.is_featured ? (
@@ -541,22 +522,20 @@ export default function ProductDetailScreen() {
 
           <Text style={styles.productName}>{product.name}</Text>
 
-          {/* Descripción */}
-          {(product.short_description || product.long_description) && (
+          {!!(product.short_description || product.long_description) && (
             <Text style={styles.productDescription}>
               {product.long_description || product.short_description}
             </Text>
           )}
 
-          {/* Selector de variantes (Tamaños) */}
           {activeVariants.length > 0 && (
             <View style={styles.selectorSection}>
-              <Text style={styles.sectionLabel}>Elige el tamaño:</Text>
+              <Text style={styles.sectionLabel}>Tamaño</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.variantsScroll}>
-                {activeVariants.map((variant, index) => {
+                {activeVariants.map((variant) => {
                   const isSelected = selectedVariant?.id === variant.id;
                   return (
                     <TouchableOpacity
@@ -572,7 +551,7 @@ export default function ProductDetailScreen() {
                           styles.variantChipText,
                           isSelected && styles.variantChipTextSelected,
                         ]}>
-                        {getVariantLabel(variant.sku, index)}
+                        {getVariantName(variant)} {/* <-- Imprime la data extraída de BD */}
                       </Text>
                       <Text
                         style={[
@@ -588,8 +567,7 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {/* Acordeón de Personalización — solo visible si el producto es personalizable */}
-          {product.is_customizable && ( // [CUSTOMIZABLE v1]
+          {product.is_customizable && (
             <View style={styles.accordionContainer}>
               <TouchableOpacity
                 style={styles.accordionHeader}
@@ -635,33 +613,6 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {/* Complementos Extra */}
-          <View style={styles.complementsSection}>
-            <Text style={styles.sectionLabel}>Complementos Extra:</Text>
-            {COMPLEMENTS.map((addon) => {
-              const isChecked = selectedAddOns.some((item) => item.id === addon.id);
-              return (
-                <Pressable
-                  key={addon.id}
-                  style={styles.checkboxRow}
-                  onPress={() => handleToggleAddOn(addon)}>
-                  <Feather
-                    name={isChecked ? 'check-square' : 'square'}
-                    size={22}
-                    color={isChecked ? '#FF6B00' : '#8E8E93'}
-                  />
-                  <View style={styles.checkboxLabelContainer}>
-                    <Text style={styles.checkboxLabel}>{addon.name}</Text>
-                    <Text style={styles.checkboxPrice}>
-                      {addon.price > 0 ? `+ ${formatCOP(addon.price)}` : 'Gratis'}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Carrusel de Productos Relacionados */}
           {relatedProducts.length > 0 && (
             <View style={styles.relatedSection}>
               <Text style={styles.sectionLabel}>También podría gustarte</Text>
@@ -700,8 +651,7 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {/* ── Entrada a la Ruleta de la Dulzura (invitados) ── */}
-          {!currentUser && welcomeCoupon && (
+          {(!currentUser && welcomeCoupon) ? (
             <TouchableOpacity
               style={styles.wheelEntryBanner}
               activeOpacity={0.88}
@@ -719,7 +669,7 @@ export default function ProductDetailScreen() {
                 <Feather name="chevron-right" size={22} color="#FF6B00" />
               </View>
             </TouchableOpacity>
-          )}
+          ) : null}
 
         </View>
       </ScrollView>
@@ -728,7 +678,6 @@ export default function ProductDetailScreen() {
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={styles.bottomBarContent}>
 
-          {/* Selector de cantidad */}
           <View style={styles.quantitySelector}>
             <TouchableOpacity
               style={styles.qtyButton}
@@ -745,7 +694,6 @@ export default function ProductDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Botón de compra */}
           <TouchableOpacity
             style={styles.buyButton}
             activeOpacity={0.85}
@@ -756,42 +704,34 @@ export default function ProductDetailScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
     </View>
   );
 }
 
-
-// ─── Paleta de marca (identidad LaTortaria — idéntica a profile.tsx) ──────────
-
 const BRAND = {
-  // Colores base
-  cream:          '#FAF7F2',
-  rose:           '#C8745A',
-  roseDark:       '#A85A42',
-  roseLight:      '#F5E6DF',
-  ink:            '#2C2018',
-  inkMid:         '#6B5744',
-  inkLight:       '#A8917E',
-  divider:        '#EDE4D8',
-  white:          '#FFFFFF',
-  // Estados
-  statusPaid:     '#2D6A4F',
-  statusPaidBg:   '#D8F3DC',
-  red:            '#B5451B',
-  redBg:          '#FDEBD0',
-  // UI legacy
-  orange:         '#C8745A',   // alias → rose para consistencia
-  background:     '#FAF7F2',
-  surface:        '#FFFFFF',
-  textPrimary:    '#2C2018',
-  textSecondary:  '#A8917E',
-  textMuted:      '#6B5744',
-  border:         '#EDE4D8',
+  cream: '#FAF7F2',
+  rose: '#C8745A',
+  roseDark: '#A85A42',
+  roseLight: '#F5E6DF',
+  ink: '#2C2018',
+  inkMid: '#6B5744',
+  inkLight: '#A8917E',
+  divider: '#EDE4D8',
+  white: '#FFFFFF',
+  statusPaid: '#2D6A4F',
+  statusPaidBg: '#D8F3DC',
+  red: '#B5451B',
+  redBg: '#FDEBD0',
+  orange: '#C8745A',
+  background: '#FAF7F2',
+  surface: '#FFFFFF',
+  textPrimary: '#2C2018',
+  textSecondary: '#A8917E',
+  textMuted: '#6B5744',
+  border: '#EDE4D8',
   imagePlaceholder: '#F5E6DF',
-  // Spacing
-  radius:         14,
-  radiusSm:       8,
+  radius: 14,
+  radiusSm: 8,
 } as const;
 
 const styles = StyleSheet.create({
@@ -843,7 +783,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  // Galería de fotos
   galleryWrapper: {
     width: '100%',
     height: 320,
@@ -910,7 +849,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
 
-  // Detalles de Producto
   body: {
     padding: 20,
   },
@@ -971,7 +909,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  // Selector de variantes
   selectorSection: {
     marginBottom: 24,
   },
@@ -1016,7 +953,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Acordeón de Personalización
   accordionContainer: {
     backgroundColor: BRAND.white,
     borderRadius: BRAND.radius,
@@ -1078,39 +1014,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  // Complementos
-  complementsSection: {
-    marginBottom: 28,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: BRAND.white,
-    borderRadius: BRAND.radius,
-    borderWidth: 1,
-    borderColor: BRAND.divider,
-    padding: 14,
-    marginBottom: 10,
-  },
-  checkboxLabelContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: BRAND.inkMid,
-  },
-  checkboxPrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: BRAND.ink,
-  },
-
-  // Productos Relacionados
   relatedSection: {
     marginTop: 10,
   },
@@ -1159,7 +1062,6 @@ const styles = StyleSheet.create({
     color: BRAND.rose,
   },
 
-  // Barra Inferior de Compra
   bottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -1231,7 +1133,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // ── Entrada a la Ruleta ───────────────────────────────────────────────────
   wheelEntryBanner: {
     marginTop: 24,
     marginBottom: 8,

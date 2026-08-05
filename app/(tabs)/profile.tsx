@@ -307,6 +307,7 @@ export default function ProfileScreen() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const isRegisteringRef = useRef(false);
 
   // ── Refs de animación para el confeti ─────────────────────────────────────
   // Cada partícula tiene: translateY, translateX, opacity, rotate, scale
@@ -514,12 +515,15 @@ export default function ProfileScreen() {
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Bloque A — solo SIGNED_IN: navega al catálogo tras autenticación
+      // Bloque A — solo SIGNED_IN: navega al catálogo tras autenticación (excepto si se está registrando)
       if (event === 'SIGNED_IN') {
         const cu = session?.user ?? null;
         setUser(cu);
         if (cu) await loadUserData(cu.id);
-        router.replace('/'); // [AUTH-REDIRECT]
+
+        if (!isRegisteringRef.current) {
+          router.replace('/'); // [AUTH-REDIRECT]
+        }
       }
 
       // Bloque B — TOKEN_REFRESHED y USER_UPDATED: actualiza datos sin navegar
@@ -532,6 +536,9 @@ export default function ProfileScreen() {
         setUser(null); setProfile(null); setOrders([]); setFavorites([]);
         setFullName(''); setEmail(''); setPhone(''); setPassword('');
         setActiveSection('orders'); setExpandedOrderId(null);
+        setShowWelcomeModal(false);
+        setShowCelebration(false);
+        isRegisteringRef.current = false;
       }
       setLoading(false);
     });
@@ -595,6 +602,7 @@ export default function ProfileScreen() {
     setCopiedCode(false);
     // Resetear opacidad del confeti
     confettiAnims.forEach(a => a.opacity.setValue(0));
+    isRegisteringRef.current = false;
     router.replace('/'); // [AUTH-REDIRECT]
   };
 
@@ -663,6 +671,7 @@ export default function ProfileScreen() {
 
       } else if (pendingAuthAction === 'register') {
         // ── REGISTRO con captchaToken ───────────────────────────────────
+        isRegisteringRef.current = true;
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
@@ -673,15 +682,21 @@ export default function ProfileScreen() {
           },
         });
 
-        if (error) { Alert.alert('Error al registrarse', error.message); return; }
+        if (error) {
+          isRegisteringRef.current = false;
+          Alert.alert('Error al registrarse', error.message);
+          return;
+        }
 
         if (data.session === null && (data.user?.identities?.length ?? 0) === 0) {
+          isRegisteringRef.current = false;
           Alert.alert('Cuenta existente', 'Ya tienes una cuenta con este correo. Por favor, inicia sesión.');
           setAuthMode('login');
           return;
         }
 
         if (data.session === null) {
+          isRegisteringRef.current = false;
           Alert.alert('¡Casi listo!', 'Te enviamos un correo de verificación. Revísalo para activar tu cuenta y vuelve a iniciar sesión.');
           return;
         }
@@ -942,48 +957,118 @@ export default function ProfileScreen() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // RENDER — Celebración post-registro (siempre montada, independiente del
+  // estado de auth, para que no se desmonte cuando user pasa de null a obj)
+  // ─────────────────────────────────────────────────────────────────────────
+  const celebrationOverlay = (
+    <>
+      {/* ── CONFETI ANIMADO — se pinta sobre todo usando absolute ─────── */}
+      {showCelebration && (
+        <View style={s.confettiContainer} pointerEvents="none">
+          {confettiAnims.map((anim, i) => {
+            const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+            const size = 8 + (i % 5) * 3;
+            const isCircle = i % 3 !== 0;
+            return (
+              <Animated.View
+                key={i}
+                style={[
+                  s.confettiDot,
+                  {
+                    width: size,
+                    height: isCircle ? size : size * 1.6,
+                    borderRadius: isCircle ? size / 2 : 3,
+                    backgroundColor: color,
+                    opacity: anim.opacity,
+                    transform: [
+                      { translateX: anim.x },
+                      { translateY: anim.y },
+                      { scale: anim.scale },
+                      {
+                        rotate: anim.rotate.interpolate({
+                          inputRange: [-6, 6],
+                          outputRange: ['-180deg', '180deg'],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+      )}
+
+      {/* ── MODAL DE BIENVENIDA POST-REGISTRO ──────────────────────────── */}
+      <Modal
+        visible={showWelcomeModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={handleCloseCelebration}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalCard}>
+            {/* Cabecera del modal */}
+            <Text style={s.modalEmoji}>🎂</Text>
+            <Text style={s.modalTitle}>¡Bienvenido a la familia{`\n`}de La Tortaria!</Text>
+
+            <Text style={s.modalBody}>
+              Tu cuenta ha sido creada con éxito.{`\n`}Hemos activado tu cupón de bienvenida:
+            </Text>
+
+            {/* Caja del cupón */}
+            <View style={s.modalCouponBox}>
+              <Feather name="gift" size={18} color={BRAND.rose} style={{ marginRight: 8 }} />
+              <Text style={s.modalCouponCode}>
+                {welcomeCoupon?.code ?? 'WELCOME_2026'}
+              </Text>
+            </View>
+
+            <Text style={s.modalBodySmall}>
+              Úsalo en tu carrito de compras para ahorrar{` `}
+              {welcomeCoupon ? formatCOP(welcomeCoupon.benefit) : ''} de inmediato.
+            </Text>
+
+            {/* Botón copiar */}
+            <TouchableOpacity
+              style={[s.copyButton, copiedCode && s.copyButtonCopied]}
+              onPress={handleCopyCode}
+              activeOpacity={0.82}
+            >
+              <Feather
+                name={copiedCode ? 'check' : 'copy'}
+                size={15}
+                color={copiedCode ? BRAND.statusPaid : BRAND.white}
+              />
+              <Text style={[s.copyButtonText, copiedCode && s.copyButtonTextCopied]}>
+                {copiedCode ? '¡Copiado al portapapeles!' : 'Copiar código'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Botón cerrar */}
+            <TouchableOpacity
+              style={s.closeModalButton}
+              onPress={handleCloseCelebration}
+              activeOpacity={0.8}
+            >
+              <Text style={s.closeModalText}>Continuar →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
   // RENDER — Formulario de acceso (invitado)
   // ─────────────────────────────────────────────────────────────────────────
   if (!user) {
     return (
       <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
-        {/* ── CONFETI ANIMADO — se pinta sobre todo usando absolute ─────── */}
-        {showCelebration && (
-          <View style={s.confettiContainer} pointerEvents="none">
-            {confettiAnims.map((anim, i) => {
-              const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
-              const size = 8 + (i % 5) * 3; // tamaños variados: 8-20px
-              const isCircle = i % 3 !== 0;
-              return (
-                <Animated.View
-                  key={i}
-                  style={[
-                    s.confettiDot,
-                    {
-                      width: size,
-                      height: isCircle ? size : size * 1.6,
-                      borderRadius: isCircle ? size / 2 : 3,
-                      backgroundColor: color,
-                      opacity: anim.opacity,
-                      transform: [
-                        { translateX: anim.x },
-                        { translateY: anim.y },
-                        { scale: anim.scale },
-                        {
-                          rotate: anim.rotate.interpolate({
-                            inputRange: [-6, 6],
-                            outputRange: ['-180deg', '180deg'],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-              );
-            })}
-          </View>
-        )}
+        {/* Celebración post-registro — overlay independiente del estado de auth */}
+        {celebrationOverlay}
 
         {/* ── MODAL DE VERIFICACIÓN CAPTCHA (Cloudflare Turnstile) ──────── */}
         {/* Solo aparece en flujos correo/contraseña — NO en Google ni Apple. */}
@@ -996,7 +1081,7 @@ export default function ProfileScreen() {
         >
           <View style={s.modalOverlay}>
             <View style={[s.modalCard, { paddingTop: 20, paddingBottom: 16, paddingHorizontal: 10, maxWidth: 340 }]}>
-              <Text style={[s.modalTitle, { fontSize: 14, marginBottom: 4 }]}>Verificando que eres humana 🛡️</Text>
+              <Text style={[s.modalTitle, { fontSize: 14, marginBottom: 4 }]}>Verificando que eres humano 🛡️</Text>
               <Text style={[s.modalBody, { marginBottom: 14 }]}>Esto solo toma un momento.</Text>
 
               <TurnstileWidget
@@ -1083,64 +1168,7 @@ export default function ProfileScreen() {
           </View>
         </Modal>
 
-        {/* ── MODAL DE BIENVENIDA POST-REGISTRO ──────────────────────────── */}
-        <Modal
-          visible={showWelcomeModal}
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={handleCloseCelebration}
-        >
-          <View style={s.modalOverlay}>
-            <View style={s.modalCard}>
-              {/* Cabecera del modal */}
-              <Text style={s.modalEmoji}>🎂</Text>
-              <Text style={s.modalTitle}>¡Bienvenida a la familia{`\n`}de La Tortaria!</Text>
-
-              <Text style={s.modalBody}>
-                Tu cuenta ha sido creada con éxito.{`\n`}Hemos activado tu cupón de bienvenida:
-              </Text>
-
-              {/* Caja del cupón */}
-              <View style={s.modalCouponBox}>
-                <Feather name="gift" size={18} color={BRAND.rose} style={{ marginRight: 8 }} />
-                <Text style={s.modalCouponCode}>
-                  {welcomeCoupon?.code ?? 'WELCOME_2026'}
-                </Text>
-              </View>
-
-              <Text style={s.modalBodySmall}>
-                Úsalo en tu carrito de compras para ahorrar{` `}
-                {welcomeCoupon ? formatCOP(welcomeCoupon.benefit) : ''} de inmediato.
-              </Text>
-
-              {/* Botón copiar */}
-              <TouchableOpacity
-                style={[s.copyButton, copiedCode && s.copyButtonCopied]}
-                onPress={handleCopyCode}
-                activeOpacity={0.82}
-              >
-                <Feather
-                  name={copiedCode ? 'check' : 'copy'}
-                  size={15}
-                  color={copiedCode ? BRAND.statusPaid : BRAND.white}
-                />
-                <Text style={[s.copyButtonText, copiedCode && s.copyButtonTextCopied]}>
-                  {copiedCode ? '¡Copiado al portapapeles!' : 'Copiar código'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Botón cerrar */}
-              <TouchableOpacity
-                style={s.closeModalButton}
-                onPress={handleCloseCelebration}
-                activeOpacity={0.8}
-              >
-                <Text style={s.closeModalText}>Continuar →</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        {/* Modal de bienvenida y confeti ahora se renderizan vía celebrationOverlay arriba */}
 
         <ScrollView
           contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
@@ -1313,6 +1341,9 @@ export default function ProfileScreen() {
   // RENDER — Panel autenticado
   // ─────────────────────────────────────────────────────────────────────────
   return (
+    <View style={{ flex: 1 }}>
+    {/* Celebración post-registro — overlay independiente del estado de auth */}
+    {celebrationOverlay}
     <ScrollView
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
@@ -1577,6 +1608,7 @@ export default function ProfileScreen() {
         <Text style={s.signOutText}>Cerrar sesión</Text>
       </TouchableOpacity>
     </ScrollView>
+    </View>
   );
 }
 

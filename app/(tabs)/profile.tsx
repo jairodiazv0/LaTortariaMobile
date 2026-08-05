@@ -45,8 +45,8 @@ import {
   Modal,
   Dimensions,
   Share,
-  Clipboard,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -582,16 +582,24 @@ export default function ProfileScreen() {
   const handleCopyCode = async () => {
     if (!welcomeCoupon) return;
     try {
-      Clipboard.setString(welcomeCoupon.code);
+      await Clipboard.setStringAsync(welcomeCoupon.code);
       setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 3000);
+      Alert.alert(
+        '¡Código copiado! 🎉',
+        `El código "${welcomeCoupon.code}" fue copiado al portapapeles.\n\nÚsalo en tu carrito de compras para obtener ${formatCOP(welcomeCoupon.benefit)} de descuento.`,
+      );
+      setTimeout(() => setCopiedCode(false), 4000);
     } catch {
+      // Fallback: Share nativo si el clipboard falla
       try {
         await Share.share({ message: welcomeCoupon.code });
         setCopiedCode(true);
-        setTimeout(() => setCopiedCode(false), 3000);
+        setTimeout(() => setCopiedCode(false), 4000);
       } catch {
-        Alert.alert('Tu cupón de bienvenida', welcomeCoupon.code);
+        Alert.alert(
+          'Tu cupón de bienvenida',
+          `Anota este código para usarlo en tu carrito:\n\n${welcomeCoupon.code}`,
+        );
       }
     }
   };
@@ -1342,272 +1350,272 @@ export default function ProfileScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1 }}>
-    {/* Celebración post-registro — overlay independiente del estado de auth */}
-    {celebrationOverlay}
-    <ScrollView
-      style={s.root}
-      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* ── Encabezado de cuenta ─────────────────────────────────────────── */}
-      <View style={s.accountHeader}>
-        <View style={s.avatarCircle}>
-          <Text style={s.avatarInitial}>
-            {(profile?.full_name ?? user.email ?? 'U')[0].toUpperCase()}
-          </Text>
+      {/* Celebración post-registro — overlay independiente del estado de auth */}
+      {celebrationOverlay}
+      <ScrollView
+        style={s.root}
+        contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Encabezado de cuenta ─────────────────────────────────────────── */}
+        <View style={s.accountHeader}>
+          <View style={s.avatarCircle}>
+            <Text style={s.avatarInitial}>
+              {(profile?.full_name ?? user.email ?? 'U')[0].toUpperCase()}
+            </Text>
+          </View>
+          <Text style={s.accountName}>{profile?.full_name ?? 'Bienvenida'}</Text>
+          <Text style={s.accountEmail}>{user.email}</Text>
+          {profile?.phone ? <Text style={s.accountPhone}>{profile.phone}</Text> : null}
         </View>
-        <Text style={s.accountName}>{profile?.full_name ?? 'Bienvenida'}</Text>
-        <Text style={s.accountEmail}>{user.email}</Text>
-        {profile?.phone ? <Text style={s.accountPhone}>{profile.phone}</Text> : null}
-      </View>
 
-      {/* ── Sub-menú de secciones ────────────────────────────────────────── */}
-      <View style={s.sectionNav}>
-        {(
-          [
-            { key: 'orders', icon: 'shopping-bag', label: 'Mis Pedidos', count: orders.length },
-            { key: 'favorites', icon: 'heart', label: 'Favoritos', count: favorites.length },
-            { key: 'profile', icon: 'user', label: 'Mi Perfil', count: null },
-          ] as { key: ActiveSection; icon: any; label: string; count: number | null }[]
-        ).map(({ key, icon, label, count }) => {
-          const active = activeSection === key;
-          return (
-            <TouchableOpacity
-              key={key}
-              style={[s.navCard, active && s.navCardActive]}
-              onPress={() => setActiveSection(key)}
-              activeOpacity={0.8}
-            >
-              <Feather name={icon} size={18} color={active ? BRAND.white : BRAND.inkMid} />
-              <Text style={[s.navCardLabel, active && s.navCardLabelActive]}>{label}</Text>
-              {count !== null && count > 0 && (
-                <View style={[s.navBadge, active && s.navBadgeActive]}>
-                  <Text style={[s.navBadgeText, active && s.navBadgeTextActive]}>{count}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* ── SECCIÓN: MIS PEDIDOS ─────────────────────────────────────────── */}
-      {activeSection === 'orders' && (
-        <View style={s.section}>
-          {orders.length === 0 ? (
-            <View style={s.emptyState}>
-              <Feather name="shopping-bag" size={40} color={BRAND.inkLight} />
-              <Text style={s.emptyTitle}>Sin pedidos aún</Text>
-              <Text style={s.emptyBody}>¡Tu primer pastel te espera!</Text>
-            </View>
-          ) : (
-            // Regla de negocio: pedidos cancelados desaparecen de la vista del
-            // cliente pero se conservan en BD para auditoría del administrador.
-            (orders.filter((o) => o.status !== 'cancelled')).map((order) => {
-              const { label, color, bg } = getStatusLabel(order.status);
-              const expanded = expandedOrderId === order.id;
-              return (
-                <TouchableOpacity
-                  key={order.id}
-                  style={[s.orderCard, expanded && s.orderCardExpanded]}
-                  onPress={() => setExpandedOrderId(expanded ? null : order.id)}
-                  activeOpacity={0.85}
-                >
-                  <View style={s.orderCardTop}>
-                    <View style={[s.statusBadge, { backgroundColor: bg }]}>
-                      <Text style={[s.statusBadgeText, { color }]}>{label}</Text>
-                    </View>
-                    <View style={s.orderCardTopRight}>
-                      <Text style={s.orderAmount}>{formatCOP(order.total_amount)}</Text>
-                      <Feather
-                        name={expanded ? 'chevron-up' : 'chevron-down'}
-                        size={16}
-                        color={BRAND.inkLight}
-                        style={{ marginLeft: 6 }}
-                      />
-                    </View>
+        {/* ── Sub-menú de secciones ────────────────────────────────────────── */}
+        <View style={s.sectionNav}>
+          {(
+            [
+              { key: 'orders', icon: 'shopping-bag', label: 'Mis Pedidos', count: orders.length },
+              { key: 'favorites', icon: 'heart', label: 'Favoritos', count: favorites.length },
+              { key: 'profile', icon: 'user', label: 'Mi Perfil', count: null },
+            ] as { key: ActiveSection; icon: any; label: string; count: number | null }[]
+          ).map(({ key, icon, label, count }) => {
+            const active = activeSection === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[s.navCard, active && s.navCardActive]}
+                onPress={() => setActiveSection(key)}
+                activeOpacity={0.8}
+              >
+                <Feather name={icon} size={18} color={active ? BRAND.white : BRAND.inkMid} />
+                <Text style={[s.navCardLabel, active && s.navCardLabelActive]}>{label}</Text>
+                {count !== null && count > 0 && (
+                  <View style={[s.navBadge, active && s.navBadgeActive]}>
+                    <Text style={[s.navBadgeText, active && s.navBadgeTextActive]}>{count}</Text>
                   </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-                  <View style={s.orderCardMeta}>
-                    <Feather name="calendar" size={12} color={BRAND.inkLight} />
-                    <Text style={s.orderMeta}>Entrega: {formatDate(order.delivery_date)}</Text>
-                    <Text style={s.orderMetaDot}>·</Text>
-                    <Text style={s.orderMeta}>{formatDate(order.created_at)}</Text>
-                  </View>
-
-                  {expanded && order.order_items.length > 0 && (
-                    <View style={s.accordion}>
-                      <OrderStepper status={order.status} />
-                      <View style={s.accordionDivider} />
-                      <Text style={s.accordionTitle}>Detalle del pedido</Text>
-                      {order.order_items.map((item) => (
-                        <View key={item.id} style={s.accordionItem}>
-                          {item.image_snapshot ? (
-                            <Image source={{ uri: item.image_snapshot }} style={s.itemImage} resizeMode="cover" />
-                          ) : (
-                            <View style={[s.itemImage, s.itemImagePlaceholder]}>
-                              <Feather name="image" size={14} color={BRAND.inkLight} />
-                            </View>
-                          )}
-                          <View style={s.itemInfo}>
-                            <Text style={s.itemName} numberOfLines={2}>{item.product_name_snapshot ?? 'Producto'}</Text>
-                            {item.variant_name_snapshot ? (
-                              <Text style={s.itemVariant}>{item.variant_name_snapshot}</Text>
-                            ) : null}
-                            <Text style={s.itemQty}>× {item.quantity}</Text>
-                          </View>
-                          <Text style={s.itemPrice}>{formatCOP(item.price_at_purchase)}</Text>
-                        </View>
-                      ))}
-                      <View style={s.accordionTotal}>
-                        <Text style={s.accordionTotalLabel}>Total</Text>
-                        <Text style={s.accordionTotalAmount}>{formatCOP(order.total_amount)}</Text>
+        {/* ── SECCIÓN: MIS PEDIDOS ─────────────────────────────────────────── */}
+        {activeSection === 'orders' && (
+          <View style={s.section}>
+            {orders.length === 0 ? (
+              <View style={s.emptyState}>
+                <Feather name="shopping-bag" size={40} color={BRAND.inkLight} />
+                <Text style={s.emptyTitle}>Sin pedidos aún</Text>
+                <Text style={s.emptyBody}>¡Tu primer pastel te espera!</Text>
+              </View>
+            ) : (
+              // Regla de negocio: pedidos cancelados desaparecen de la vista del
+              // cliente pero se conservan en BD para auditoría del administrador.
+              (orders.filter((o) => o.status !== 'cancelled')).map((order) => {
+                const { label, color, bg } = getStatusLabel(order.status);
+                const expanded = expandedOrderId === order.id;
+                return (
+                  <TouchableOpacity
+                    key={order.id}
+                    style={[s.orderCard, expanded && s.orderCardExpanded]}
+                    onPress={() => setExpandedOrderId(expanded ? null : order.id)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={s.orderCardTop}>
+                      <View style={[s.statusBadge, { backgroundColor: bg }]}>
+                        <Text style={[s.statusBadgeText, { color }]}>{label}</Text>
                       </View>
+                      <View style={s.orderCardTopRight}>
+                        <Text style={s.orderAmount}>{formatCOP(order.total_amount)}</Text>
+                        <Feather
+                          name={expanded ? 'chevron-up' : 'chevron-down'}
+                          size={16}
+                          color={BRAND.inkLight}
+                          style={{ marginLeft: 6 }}
+                        />
+                      </View>
+                    </View>
 
-                      {/* ── Acciones de pedido pendiente ─────────────────── */}
-                      {order.status === 'pending_payment' && (
-                        <View style={s.orderActionsRow}>
-                          <TouchableOpacity
-                            style={s.orderActionCancel}
-                            onPress={() => handleCancelOrder(order.id)}
-                            activeOpacity={0.75}
-                          >
-                            <Feather name="x-circle" size={14} color={BRAND.statusCancelled} />
-                            <Text style={s.orderActionCancelText}>Cancelar pedido</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={s.orderActionResume}
-                            onPress={() => handleResumeOrder(order)}
-                            activeOpacity={0.8}
-                          >
-                            <Feather name="shopping-cart" size={14} color={BRAND.white} />
-                            <Text style={s.orderActionResumeText}>Retomar pedido</Text>
-                          </TouchableOpacity>
+                    <View style={s.orderCardMeta}>
+                      <Feather name="calendar" size={12} color={BRAND.inkLight} />
+                      <Text style={s.orderMeta}>Entrega: {formatDate(order.delivery_date)}</Text>
+                      <Text style={s.orderMetaDot}>·</Text>
+                      <Text style={s.orderMeta}>{formatDate(order.created_at)}</Text>
+                    </View>
+
+                    {expanded && order.order_items.length > 0 && (
+                      <View style={s.accordion}>
+                        <OrderStepper status={order.status} />
+                        <View style={s.accordionDivider} />
+                        <Text style={s.accordionTitle}>Detalle del pedido</Text>
+                        {order.order_items.map((item) => (
+                          <View key={item.id} style={s.accordionItem}>
+                            {item.image_snapshot ? (
+                              <Image source={{ uri: item.image_snapshot }} style={s.itemImage} resizeMode="cover" />
+                            ) : (
+                              <View style={[s.itemImage, s.itemImagePlaceholder]}>
+                                <Feather name="image" size={14} color={BRAND.inkLight} />
+                              </View>
+                            )}
+                            <View style={s.itemInfo}>
+                              <Text style={s.itemName} numberOfLines={2}>{item.product_name_snapshot ?? 'Producto'}</Text>
+                              {item.variant_name_snapshot ? (
+                                <Text style={s.itemVariant}>{item.variant_name_snapshot}</Text>
+                              ) : null}
+                              <Text style={s.itemQty}>× {item.quantity}</Text>
+                            </View>
+                            <Text style={s.itemPrice}>{formatCOP(item.price_at_purchase)}</Text>
+                          </View>
+                        ))}
+                        <View style={s.accordionTotal}>
+                          <Text style={s.accordionTotalLabel}>Total</Text>
+                          <Text style={s.accordionTotalAmount}>{formatCOP(order.total_amount)}</Text>
+                        </View>
+
+                        {/* ── Acciones de pedido pendiente ─────────────────── */}
+                        {order.status === 'pending_payment' && (
+                          <View style={s.orderActionsRow}>
+                            <TouchableOpacity
+                              style={s.orderActionCancel}
+                              onPress={() => handleCancelOrder(order.id)}
+                              activeOpacity={0.75}
+                            >
+                              <Feather name="x-circle" size={14} color={BRAND.statusCancelled} />
+                              <Text style={s.orderActionCancelText}>Cancelar pedido</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={s.orderActionResume}
+                              onPress={() => handleResumeOrder(order)}
+                              activeOpacity={0.8}
+                            >
+                              <Feather name="shopping-cart" size={14} color={BRAND.white} />
+                              <Text style={s.orderActionResumeText}>Retomar pedido</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {/* ── SECCIÓN: FAVORITOS ───────────────────────────────────────────── */}
+        {activeSection === 'favorites' && (
+          <View style={s.section}>
+            {favorites.length === 0 ? (
+              <View style={s.emptyState}>
+                <Feather name="heart" size={40} color={BRAND.inkLight} />
+                <Text style={s.emptyTitle}>Sin favoritos aún</Text>
+                <Text style={s.emptyBody}>Marca productos con ♡ para guardarlos aquí.</Text>
+              </View>
+            ) : (
+              <View style={s.favGrid}>
+                {favorites.map((fav) => (
+                  <View key={fav.id} style={s.favCard}>
+                    {fav.coverUrl ? (
+                      <Image source={{ uri: fav.coverUrl }} style={s.favImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[s.favImage, s.favImagePlaceholder]}>
+                        <Text style={{ fontSize: 28 }}>🎂</Text>
+                      </View>
+                    )}
+                    <View style={s.favInfo}>
+                      <Text style={s.favName} numberOfLines={2}>{fav.name}</Text>
+                      {fav.rating_avg != null && fav.rating_avg > 0 && (
+                        <View style={s.favRating}>
+                          <Feather name="star" size={11} color={BRAND.rose} />
+                          <Text style={s.favRatingText}>{Number(fav.rating_avg).toFixed(1)}</Text>
                         </View>
                       )}
                     </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
-      )}
-
-      {/* ── SECCIÓN: FAVORITOS ───────────────────────────────────────────── */}
-      {activeSection === 'favorites' && (
-        <View style={s.section}>
-          {favorites.length === 0 ? (
-            <View style={s.emptyState}>
-              <Feather name="heart" size={40} color={BRAND.inkLight} />
-              <Text style={s.emptyTitle}>Sin favoritos aún</Text>
-              <Text style={s.emptyBody}>Marca productos con ♡ para guardarlos aquí.</Text>
-            </View>
-          ) : (
-            <View style={s.favGrid}>
-              {favorites.map((fav) => (
-                <View key={fav.id} style={s.favCard}>
-                  {fav.coverUrl ? (
-                    <Image source={{ uri: fav.coverUrl }} style={s.favImage} resizeMode="cover" />
-                  ) : (
-                    <View style={[s.favImage, s.favImagePlaceholder]}>
-                      <Text style={{ fontSize: 28 }}>🎂</Text>
+                    <View style={s.favHeart}>
+                      <Feather name="heart" size={14} color={BRAND.rose} />
                     </View>
-                  )}
-                  <View style={s.favInfo}>
-                    <Text style={s.favName} numberOfLines={2}>{fav.name}</Text>
-                    {fav.rating_avg != null && fav.rating_avg > 0 && (
-                      <View style={s.favRating}>
-                        <Feather name="star" size={11} color={BRAND.rose} />
-                        <Text style={s.favRatingText}>{Number(fav.rating_avg).toFixed(1)}</Text>
-                      </View>
-                    )}
                   </View>
-                  <View style={s.favHeart}>
-                    <Feather name="heart" size={14} color={BRAND.rose} />
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
-      {/* ── SECCIÓN: MI PERFIL ───────────────────────────────────────────── */}
-      {activeSection === 'profile' && (
-        <View style={s.section}>
-          {!editMode ? (
-            <View style={s.profileCard}>
-              <ProfileRow icon="user" label="Nombre" value={profile?.full_name ?? '—'} />
-              <ProfileRow icon="mail" label="Correo" value={user.email ?? '—'} />
-              <ProfileRow icon="phone" label="Celular" value={profile?.phone ?? 'No registrado'} />
-              <TouchableOpacity
-                style={s.editButton}
-                onPress={() => {
-                  setEditName(profile?.full_name ?? '');
-                  setEditPhone(profile?.phone ?? '');
-                  setEditMode(true);
-                }}
-                activeOpacity={0.8}
-              >
-                <Feather name="edit-2" size={15} color={BRAND.rose} />
-                <Text style={s.editButtonText}>Editar información</Text>
-              </TouchableOpacity>
-
-              {/* ── Divisor fino ──────────────────────────────────────────── */}
-              <View style={s.deleteAccountDivider} />
-
-              {/* ── Botón eliminar cuenta ─────────────────────────────────── */}
-              <TouchableOpacity
-                style={[s.deleteAccountButton, deletingAccount && { opacity: 0.55 }]}
-                onPress={handleDeleteAccount}
-                activeOpacity={0.75}
-                disabled={deletingAccount}
-              >
-                {deletingAccount ? (
-                  <ActivityIndicator size="small" color="#C0392B" />
-                ) : (
-                  <Feather name="trash-2" size={15} color="#C0392B" />
-                )}
-                <Text style={s.deleteAccountText}>Eliminar mi cuenta definitivamente</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={s.profileCard}>
-              <Text style={s.editSectionTitle}>Actualizar datos</Text>
-              <FormField icon="user" label="Nombre completo" placeholder="Tu nombre"
-                value={editName} onChangeText={setEditName} autoCapitalize="words" />
-              <FormField icon="phone" label="Celular" placeholder="3001234567"
-                value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" maxLength={10} />
-              <Text style={s.editEmailNote}>
-                El correo electrónico no se puede cambiar desde aquí.
-              </Text>
-              <View style={s.editActions}>
-                <TouchableOpacity style={s.cancelButton} onPress={() => setEditMode(false)} activeOpacity={0.8}>
-                  <Text style={s.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
+        {/* ── SECCIÓN: MI PERFIL ───────────────────────────────────────────── */}
+        {activeSection === 'profile' && (
+          <View style={s.section}>
+            {!editMode ? (
+              <View style={s.profileCard}>
+                <ProfileRow icon="user" label="Nombre" value={profile?.full_name ?? '—'} />
+                <ProfileRow icon="mail" label="Correo" value={user.email ?? '—'} />
+                <ProfileRow icon="phone" label="Celular" value={profile?.phone ?? 'No registrado'} />
                 <TouchableOpacity
-                  style={[s.primaryButton, { flex: 1, marginTop: 0 }, savingProfile && s.primaryButtonDisabled]}
-                  onPress={handleSaveProfile}
-                  activeOpacity={0.85}
-                  disabled={savingProfile}
+                  style={s.editButton}
+                  onPress={() => {
+                    setEditName(profile?.full_name ?? '');
+                    setEditPhone(profile?.phone ?? '');
+                    setEditMode(true);
+                  }}
+                  activeOpacity={0.8}
                 >
-                  {savingProfile
-                    ? <ActivityIndicator color={BRAND.white} />
-                    : <Text style={s.primaryButtonText}>Guardar</Text>
-                  }
+                  <Feather name="edit-2" size={15} color={BRAND.rose} />
+                  <Text style={s.editButtonText}>Editar información</Text>
+                </TouchableOpacity>
+
+                {/* ── Divisor fino ──────────────────────────────────────────── */}
+                <View style={s.deleteAccountDivider} />
+
+                {/* ── Botón eliminar cuenta ─────────────────────────────────── */}
+                <TouchableOpacity
+                  style={[s.deleteAccountButton, deletingAccount && { opacity: 0.55 }]}
+                  onPress={handleDeleteAccount}
+                  activeOpacity={0.75}
+                  disabled={deletingAccount}
+                >
+                  {deletingAccount ? (
+                    <ActivityIndicator size="small" color="#C0392B" />
+                  ) : (
+                    <Feather name="trash-2" size={15} color="#C0392B" />
+                  )}
+                  <Text style={s.deleteAccountText}>Eliminar mi cuenta definitivamente</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          )}
-        </View>
-      )}
+            ) : (
+              <View style={s.profileCard}>
+                <Text style={s.editSectionTitle}>Actualizar datos</Text>
+                <FormField icon="user" label="Nombre completo" placeholder="Tu nombre"
+                  value={editName} onChangeText={setEditName} autoCapitalize="words" />
+                <FormField icon="phone" label="Celular" placeholder="3001234567"
+                  value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" maxLength={10} />
+                <Text style={s.editEmailNote}>
+                  El correo electrónico no se puede cambiar desde aquí.
+                </Text>
+                <View style={s.editActions}>
+                  <TouchableOpacity style={s.cancelButton} onPress={() => setEditMode(false)} activeOpacity={0.8}>
+                    <Text style={s.cancelButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.primaryButton, { flex: 1, marginTop: 0 }, savingProfile && s.primaryButtonDisabled]}
+                    onPress={handleSaveProfile}
+                    activeOpacity={0.85}
+                    disabled={savingProfile}
+                  >
+                    {savingProfile
+                      ? <ActivityIndicator color={BRAND.white} />
+                      : <Text style={s.primaryButtonText}>Guardar</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
-      {/* ── Botón cerrar sesión ──────────────────────────────────────────── */}
-      <TouchableOpacity style={s.signOutButton} onPress={handleSignOut} activeOpacity={0.8}>
-        <Feather name="log-out" size={16} color={BRAND.rose} />
-        <Text style={s.signOutText}>Cerrar sesión</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        {/* ── Botón cerrar sesión ──────────────────────────────────────────── */}
+        <TouchableOpacity style={s.signOutButton} onPress={handleSignOut} activeOpacity={0.8}>
+          <Feather name="log-out" size={16} color={BRAND.rose} />
+          <Text style={s.signOutText}>Cerrar sesión</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }

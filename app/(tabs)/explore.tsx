@@ -720,7 +720,7 @@ export default function ExploreScreen() {
       <TouchableOpacity
         style={styles.searchBarWrapper}
         activeOpacity={0.9}
-        onPress={() => router.push('/modal')}
+        onPress={() => router.push('/search')}
       >
         <View style={styles.searchInputContainer}>
           <Feather name="search" size={18} color="#8E8E93" style={styles.searchIcon} />

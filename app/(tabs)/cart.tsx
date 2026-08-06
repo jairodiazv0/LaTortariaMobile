@@ -10,8 +10,8 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
@@ -113,7 +113,14 @@ function CartItemCard({ item, onUpdateQuantity, onRemove }: CartItemCardProps) {
     <View style={styles.card}>
       <View style={styles.cardImageWrapper}>
         {item.image_url ? (
-          <Image source={{ uri: item.image_url }} style={styles.cardImage} resizeMode="cover" />
+          <Image
+            source={{ uri: item.image_url }}
+            style={styles.cardImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={item.cart_id}
+            transition={150}
+          />
         ) : (
           <View style={styles.cardImageFallback}>
             <Text style={styles.cardImageEmoji}>🍰</Text>

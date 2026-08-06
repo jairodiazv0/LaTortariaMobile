@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -88,7 +89,14 @@ export default function FavoritesScreen() {
           {favorites.map((fav) => (
             <TouchableOpacity key={fav.id} style={s.card} activeOpacity={0.85} onPress={() => router.push({ pathname: "/product/[id]", params: { id: fav.product_id } })}>
               {fav.coverUrl ? (
-                <Image source={{ uri: fav.coverUrl }} style={s.image} resizeMode="cover" />
+                <Image
+                  source={{ uri: fav.coverUrl }}
+                  style={s.image}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  recyclingKey={fav.id}
+                  transition={150}
+                />
               ) : (
                 <View style={[s.image, { alignItems: 'center', justifyContent: 'center', backgroundColor: BRAND.imagePlaceholder }]}>
                   <Text style={{ fontSize: 24 }}>🍰</Text>

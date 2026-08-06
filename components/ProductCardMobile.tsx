@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { BRAND } from '@/constants/Colors';
 
@@ -37,7 +38,14 @@ export function ProductCardMobile({ product, width, onPress }: ProductCardMobile
       onPress={onPress}>
       <View style={styles.imageWrapper}>
         {product.image_url ? (
-          <Image source={{ uri: product.image_url }} style={styles.image} resizeMode="cover" />
+          <Image
+            source={{ uri: product.image_url }}
+            style={styles.image}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={product.id}
+            transition={150}
+          />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Text style={styles.placeholderEmoji}>🍰</Text>

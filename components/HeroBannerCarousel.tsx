@@ -3,7 +3,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
-  Image,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 
 import { BRAND } from '@/constants/Colors';
 
@@ -96,7 +96,15 @@ export default function HeroBannerCarousel({ banners }: HeroBannerCarouselProps)
         contentContainerStyle={styles.scrollContent}>
         {banners.map((banner) => (
           <View key={banner.id} style={[styles.slide, { width: slideWidth }]}>
-            <Image source={{ uri: banner.image_url }} style={styles.image} resizeMode="cover" />
+            <Image
+              source={{ uri: banner.image_url }}
+              style={styles.image}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              recyclingKey={banner.id}
+              transition={200}
+              priority="high"
+            />
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.6)']}
               style={styles.overlay}

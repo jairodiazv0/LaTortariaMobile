@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { BRAND } from '@/constants/Colors';
 import { ProductCardMobile, ProductCardData } from '@/components/ProductCardMobile';
@@ -45,7 +46,14 @@ export function CategorySection({ category, products, onPressProduct }: Category
         style={styles.carousel}>
         <TouchableOpacity style={styles.categoryCard} activeOpacity={0.85} onPress={handleSeeAll}>
           {category.image_url ? (
-            <Image source={{ uri: category.image_url }} style={styles.categoryImage} resizeMode="cover" />
+            <Image
+              source={{ uri: category.image_url }}
+              style={styles.categoryImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              recyclingKey={category.id}
+              transition={150}
+            />
           ) : (
             <LinearGradient
               colors={[BRAND.moss, BRAND.ink]}

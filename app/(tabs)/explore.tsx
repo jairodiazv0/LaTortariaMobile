@@ -10,8 +10,8 @@ import {
   View,
   ScrollView,
   TextInput,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BRAND } from '@/constants/Colors';
@@ -683,6 +683,10 @@ export default function ExploreScreen() {
             columnWrapperStyle={styles.rowWrapper}
             contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            initialNumToRender={6}
+            maxToRenderPerBatch={6}
+            windowSize={5}
           />
         )}
       </View>
@@ -785,7 +789,14 @@ export default function ExploreScreen() {
               >
                 <View style={styles.trendingImageContainer}>
                   {product.imageUrl ? (
-                    <Image source={{ uri: product.imageUrl }} style={styles.trendingImage} />
+                    <Image
+                      source={{ uri: product.imageUrl }}
+                      style={styles.trendingImage}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      recyclingKey={product.id}
+                      transition={150}
+                    />
                   ) : (
                     <View style={styles.trendingImagePlaceholder} />
                   )}
@@ -922,7 +933,14 @@ export default function ExploreScreen() {
                 onPress={() => handlePressProduct(product)}
               >
                 {product.imageUrl ? (
-                  <Image source={{ uri: product.imageUrl }} style={styles.forYouThumbnail} />
+                  <Image
+                    source={{ uri: product.imageUrl }}
+                    style={styles.forYouThumbnail}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={product.id}
+                    transition={150}
+                  />
                 ) : (
                   <View style={styles.forYouThumbnailPlaceholder} />
                 )}

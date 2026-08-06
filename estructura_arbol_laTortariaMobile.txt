@@ -156,6 +156,7 @@
         |-- android-icon-foreground.png
         |-- favicon.png
         |-- icon.png
+        |-- SELLO 1.png
         |-- splash-icon.png
 |-- components
     |-- CategorySection.tsx

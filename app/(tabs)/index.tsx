@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StyleSheet,
   Text,

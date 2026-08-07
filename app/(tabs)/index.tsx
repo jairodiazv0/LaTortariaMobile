@@ -129,12 +129,8 @@ function toProductCardData(product: Product): ProductCardData {
 
 function HomeHeader({
   profileName,
-  searchQuery,
-  onSearchChange,
 }: {
   profileName: string | null;
-  searchQuery: string;
-  onSearchChange: (text: string) => void;
 }) {
   const router = useRouter();
 
@@ -202,23 +198,26 @@ function HomeHeader({
       </View>
 
       <View style={styles.searchRow}>
-        <View style={styles.searchInputWrapper}>
+        <TouchableOpacity
+          style={styles.searchInputWrapper}
+          activeOpacity={0.9}
+          onPress={() => router.push('/search')}
+        >
           <Feather name="search" size={18} color="#8E8E93" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar pasteles, ocasiones..."
             placeholderTextColor="#8E8E93"
-            returnKeyType="search"
-            value={searchQuery}
-            onChangeText={onSearchChange}
+            editable={false}
+            pointerEvents="none"
           />
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.filterButton}
           activeOpacity={0.85}
-          onPress={() => (searchQuery ? onSearchChange('') : null)}
+          onPress={() => router.push('/search')}
         >
-          <Feather name={searchQuery ? 'x' : 'sliders'} size={20} color="#FFFFFF" />
+          <Feather name="sliders" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>
@@ -235,7 +234,6 @@ export default function HomeScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [banners, setBanners] = useState<HeroBanner[]>([]);
@@ -628,38 +626,11 @@ export default function HomeScreen() {
     setCategoriesWithProducts(grouped);
   }, [categories, products]);
 
-  // ── Búsqueda reactiva + filtro por especialidad seleccionada ─────────────────
+  // ── Filtro por especialidad seleccionada ─────────────────
   const filteredProducts = useMemo(() => {
-    // Primero filtramos por categoría de base de datos si hay una seleccionada
-    let baseList = products;
-    if (selectedCategoryId) {
-      baseList = products.filter((p) => p.categoryId === selectedCategoryId);
-    }
-
-    if (!searchQuery.trim()) return baseList;
-
-    // Normaliza texto: minúsculas, sin tildes y sin 'h' muda
-    const normalize = (str: string) =>
-      str
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Elimina acentos
-        .replace(/h/g, ''); // Remueve la 'h' para tolerar "Thorta" o "Tortha" -> "torta"
-
-    const target = normalize(searchQuery);
-    return baseList.filter((product) => {
-      const haystack = [
-        product.name,
-        product.sizeLabel,
-        product.categoryName || '',
-        ...(product.tags || []),
-      ]
-        .map(normalize)
-        .join(' ');
-
-      return haystack.includes(target);
-    });
-  }, [products, searchQuery, selectedCategoryId, categories]);
+    if (!selectedCategoryId) return products;
+    return products.filter((p) => p.categoryId === selectedCategoryId);
+  }, [products, selectedCategoryId]);
 
   const featuredProducts = useMemo(
     () => filteredProducts.filter((p) => p.isFeatured),
@@ -705,7 +676,7 @@ export default function HomeScreen() {
           { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}>
-        <HomeHeader profileName={profileName} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+        <HomeHeader profileName={profileName} />
         <HeroBannerCarousel banners={banners} />
         <TrustBar />
         <CategoryStrip

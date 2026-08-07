@@ -28,6 +28,8 @@ import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
 import { useNotificationStore } from '../../store/useNotificationStore';
 
+const WHEEL_ENABLED = false; // 🔒 Ruleta de la Dulzura desactivada temporalmente — cambiar a true para reactivar
+
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 type ProductBadge = 'TOP' | 'NUEVO';
@@ -451,7 +453,7 @@ export default function HomeScreen() {
 
       // ── Disparador automático de la Ruleta (solo invitados, y solo tras
       // confirmar que no hay sesión activa; nunca antes de saberlo) ──────────
-      if (!user) {
+      if (WHEEL_ENABLED && !user) {
         setShowWheelModal(true);
       }
     });

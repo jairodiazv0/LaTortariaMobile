@@ -1,0 +1,37 @@
+El flujo de notificaciones se divide en dos partes principales: lo que ocurre en el servidor (Supabase) y lo que ocurre en la aplicación móvil (Expo).
+
+Aquí tienes el paso a paso de cómo se genera y se muestra esa notificación:
+
+1. El detonante: Cambio de estado del pedido (Backend)
+Todo comienza en la base de datos de Supabase.
+
+Cuando realizas un pedido o este cambia de estado (ej. de pending_payment a paid o a preparing), se actualiza la tabla orders.
+Esa tabla tiene un Trigger de base de datos configurado llamado trg_notify_order_status_change.
+Este trigger detecta el cambio de estado y ejecuta automáticamente la función 
+
+fn_notify_order_status_change()
+.
+Dentro de esa función, el sistema evalúa el nuevo estado y define el mensaje. Por ejemplo: si el estado es ready, el título será "¡Tu pastel está listo! 🎂" y el cuerpo "Ya salió del empaque final y espera por su entrega."
+Finalmente, la función inserta un nuevo registro en la tabla user_notifications con este mensaje, enlazándolo a tu user_id y al order_id.
+2. Notificaciones Push en el Sistema Operativo (Pantalla bloqueada / Banner)
+Para que el teléfono suene y muestre el banner de notificación:
+
+Al momento de que inicias sesión y aceptas los permisos, el hook 
+
+usePushPermissionRequest.ts
+ genera un expo_push_token (identificador único de tu dispositivo) y lo guarda en la tabla profiles de Supabase.
+Un servicio de backend externo o webhook (generalmente leyendo de la tabla user_notifications o accionado al mismo tiempo que el trigger anterior) toma este mensaje y el expo_push_token de tu perfil.
+Este servicio hace una petición a la API de Expo Push Notifications, la cual se encarga de enviarle la alerta a los servidores de Apple (APNs) o Google (FCM) para que despierte tu teléfono y te muestre la notificación, incluso si la app está cerrada.
+3. La Campanita y el Listado dentro de la APP (Frontend)
+Independientemente de la alerta Push del sistema, la app tiene su propio sistema en tiempo real para pintar la campanita roja y mostrar la lista:
+
+La lógica principal vive en 
+
+useNotificationStore.ts
+.
+Suscripción en Tiempo Real (WebSockets): Cuando abres la app, el sistema abre un "canal" de comunicación persistente con Supabase llamado user_notifications_feed:${userId}.
+Cuando la función del paso 1 inserta la fila en la tabla user_notifications, la base de datos emite un evento INSERT a través de este canal de WebSockets.
+La app recibe el mensaje de inmediato (sin necesidad de recargar la página), agrega la notificación al estado global de Zustand e incrementa el contador local (lo que hace que aparezca el punto rojo en tu campanita).
+Persistencia y Caché: Cuando tocas la campanita para ver el listado, se lee de este estado global. Si abres la app después de un tiempo offline, ejecuta la función fetchNotifications para traer las últimas 40 notificaciones directamente de la base de datos para estar sincronizado con la fuente de la verdad. Al interactuar con ellas, llama a markAsRead para actualizar la base de datos a is_read: true.
+En resumen: Supabase es el cerebro que reacciona a los cambios del pedido, genera el texto y lo guarda en la tabla. Un proceso en paralelo se lo envía a Expo para que vibre el teléfono, y al mismo tiempo la App está escuchando activamente por WebSockets a esa misma tabla para actualizar la campanita al instante.
+

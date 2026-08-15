@@ -40,11 +40,16 @@ const BRAND = {
 // cae al fallback y no rompe la pantalla.
 const STATUS_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   pending_payment: { label: 'Pedido recibido', icon: 'document-text-outline' },
-  payment_confirmed: { label: 'Pago confirmado', icon: 'card-outline' },
+  paid: { label: 'Pago confirmado', icon: 'card-outline' },
+  confirmed: { label: 'Pago confirmado', icon: 'card-outline' },
   preparing: { label: 'En el horno', icon: 'flame-outline' },
+  in_production: { label: 'En el horno', icon: 'flame-outline' },
+  ready: { label: '¡Tu pedido está listo!', icon: 'checkmark-circle-outline' },
+  shipped: { label: 'Va en camino', icon: 'bicycle-outline' },
   out_for_delivery: { label: 'Va en camino', icon: 'bicycle-outline' },
   delivered: { label: 'Pedido entregado', icon: 'checkmark-done-outline' },
   cancelled: { label: 'Pedido cancelado', icon: 'close-circle-outline' },
+  refunded: { label: 'Pedido reembolsado', icon: 'return-down-back-outline' },
 };
 
 function getStatusMeta(status: string) {

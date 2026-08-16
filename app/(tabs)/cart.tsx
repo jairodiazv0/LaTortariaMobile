@@ -417,11 +417,27 @@ export default function CartScreen() {
     if (!validateDeliveryForm()) return;
 
     try {
-      const authenticatedUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        Alert.alert(
+          'Inicia sesión para continuar',
+          'Necesitas una cuenta para completar tu pedido.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Iniciar sesión', onPress: () => router.push('/(tabs)/profile') },
+          ]
+        );
+        return;
+      }
+
+      const authenticatedUserId = session.user.id;
 
       // ⚡ ¡CORREGIDO! Cambiamos .update() por .upsert() para asegurar la creación de la fila.
       // Pasamos también el full_name obligatorio por si es el primer registro del cliente.
-      if (authenticatedUserId && phone.trim()) {
+      if (phone.trim()) {
         const { error: profileUpdateError } = await supabase
           .from('profiles')
           .upsert({ 
@@ -446,7 +462,10 @@ export default function CartScreen() {
 
       const response = await fetch('https://www.latortaria.com/api/checkout/initiate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, // [CHANNEL v1]
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           cart: orderItems,
           shipping_address: {
@@ -459,7 +478,6 @@ export default function CartScreen() {
           delivery_date: deliveryDate.trim(),
           delivery_time_slot: deliverySlot.trim(),
           guest_email: email.trim(),
-          user_id: authenticatedUserId,
           coupon_id: appliedCouponId,
           channel: 'mobile_app', // [CHANNEL v1]
           terms_accepted: termsAccepted,
@@ -524,16 +542,22 @@ export default function CartScreen() {
     setCouponError(null);
     setIsValidatingCoupon(true);
     try {
-      // 🔒 Extraer el ID del usuario autenticado — crítico para validar un solo uso en el backend
-      const authenticatedUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
+      const {
+        data: { session: couponSession },
+      } = await supabase.auth.getSession();
+      const authenticatedUserId = couponSession?.user?.id ?? null;
 
       const response = await fetch('https://www.latortaria.com/api/checkout/validate-coupon', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-platform': 'mobile' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-platform': 'mobile',
+          ...(couponSession?.access_token ? { Authorization: `Bearer ${couponSession.access_token}` } : {}),
+        },
         body: JSON.stringify({
           code: couponCode.trim().toUpperCase(),
           orderAmount: subtotal,
-          userId: authenticatedUserId, // 🔒 Crítico para validar un solo uso en el backend
+          userId: authenticatedUserId,
         }),
       });
       const data = await response.json();

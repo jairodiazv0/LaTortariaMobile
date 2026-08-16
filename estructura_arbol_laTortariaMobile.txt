@@ -127,9 +127,9 @@
                                             |-- cmakeFiles-v1
                                             |-- codemodel-v2
                                     |-- reply
-                                        |-- cache-v2-da73beb2797ff66a8111.json
-                                        |-- cmakeFiles-v1-2d1e0c19e4538a9712a6.json
-                                        |-- codemodel-v2-e6c1752b02290f271e44.json
+                                        |-- cache-v2-3ec66dee58a1b288b54e.json
+                                        |-- cmakeFiles-v1-b5e330f32994c2be74f8.json
+                                        |-- codemodel-v2-7a312719ee8bcdcf75e6.json
                                         |-- directory-.-Debug-d0094a50bb2071803777.json
                                         |-- directory-rnasyncstorage_autolinked_build-Debug-a596a5752a21d8ec91e8.json
                                         |-- directory-RNCWebViewSpec_autolinked_build-Debug-f48747f3a9803f1e9916.json
@@ -138,8 +138,8 @@
                                         |-- directory-rnsvg_autolinked_build-Debug-12b260d627eae86f964c.json
                                         |-- directory-rnworklets_autolinked_build-Debug-421e516e3a5daac70e53.json
                                         |-- directory-safeareacontext_autolinked_build-Debug-f952d15423c3115a315d.json
-                                        |-- index-2026-08-13T01-17-13-0997.json
-                                        |-- target-appmodules-Debug-8fc87f38a2b07bb42bc9.json
+                                        |-- index-2026-08-13T23-23-00-0333.json
+                                        |-- target-appmodules-Debug-4f81efb310114469388b.json
                                         |-- target-react_codegen_rnasyncstorage-Debug-0c9c6c5b132348499d84.json
                                         |-- target-react_codegen_RNCWebViewSpec-Debug-8c3bb2ece09ea22f1f08.json
                                         |-- target-react_codegen_rnreanimated-Debug-736adf21e07ae76de219.json
@@ -538,6 +538,7 @@
                                     |-- configure_command.bat
                                     |-- configure_stderr.txt
                                     |-- configure_stdout.txt
+                                    |-- generate_cxx_metadata_162_timing.txt
                                     |-- generate_cxx_metadata_167_timing.txt
                                     |-- metadata_generation_record.json
                                     |-- prefab_command.bat
@@ -2134,6 +2135,8 @@
     |-- useColorScheme.web.ts
 |-- constants
     |-- Colors.ts
+|-- Documentacion
+    |-- Funcionamiento de Notificaciones.txt
 |-- hooks
     |-- useCartAbandonmentNotification.ts
     |-- usePushPermissionRequest.ts

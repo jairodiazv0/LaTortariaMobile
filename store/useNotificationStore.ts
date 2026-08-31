@@ -45,6 +45,8 @@ interface NotificationState {
   unsubscribeFromRealtime: () => void;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: (userId: string) => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
+  clearAllNotifications: (userId: string) => Promise<void>;
   clearLocalState: () => void;
   getUnreadCount: () => number;
 }
@@ -117,6 +119,21 @@ export const useNotificationStore = create<NotificationState>()(
               }));
             }
           )
+          .on(
+            'postgres_changes',
+            {
+              event: 'DELETE',
+              schema: 'public',
+              table: 'user_notifications',
+              filter: `user_id=eq.${userId}`,
+            },
+            (payload) => {
+              const eliminado = payload.old as { id: string };
+              set((state) => ({
+                notifications: state.notifications.filter((n) => n.id !== eliminado.id),
+              }));
+            }
+          )
           .subscribe();
 
         set({ realtimeChannel: channel });
@@ -162,6 +179,47 @@ export const useNotificationStore = create<NotificationState>()(
         if (error) {
           console.error('[useNotificationStore] markAllAsRead error:', error);
           set({ notifications: prev });
+        }
+      },
+
+      deleteNotification: async (notificationId: string) => {
+        const prev = get().notifications;
+        // Optimista: quitar de inmediato del arreglo local
+        set({ notifications: prev.filter((n) => n.id !== notificationId) });
+
+        // .select('id') es obligatorio aquí, no cosmético: si una política RLS
+        // bloquea el DELETE, Supabase puede responder sin `error` pero con
+        // cero filas afectadas. Sin este chequeo, la UI mostraría la notificación
+        // como eliminada mientras sigue intacta en el servidor.
+        const { data, error } = await supabase
+          .from('user_notifications')
+          .delete()
+          .eq('id', notificationId)
+          .select('id');
+
+        if (error || !data || data.length === 0) {
+          console.error('[useNotificationStore] deleteNotification error o bloqueado por RLS:', error);
+          set({ notifications: prev }); // rollback
+          throw new Error('No se pudo eliminar la notificación.');
+        }
+      },
+
+      clearAllNotifications: async (userId: string) => {
+        const prev = get().notifications;
+        if (prev.length === 0) return;
+
+        set({ notifications: [] });
+
+        const { data, error } = await supabase
+          .from('user_notifications')
+          .delete()
+          .eq('user_id', userId)
+          .select('id');
+
+        if (error || !data || data.length === 0) {
+          console.error('[useNotificationStore] clearAllNotifications error o bloqueado por RLS:', error);
+          set({ notifications: prev });
+          throw new Error('No se pudieron eliminar las notificaciones.');
         }
       },
 

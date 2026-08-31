@@ -1,6 +1,6 @@
 // app/modal.tsx
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -22,7 +22,15 @@ export default function NotificationModalScreen() {
   const router = useRouter();
   // ─── INYECCIÓN DE INSETS ──────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
-  const { notifications, loading, fetchNotifications, markAsRead, markAllAsRead } = useNotificationStore();
+  const {
+    notifications,
+    loading,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
+  } = useNotificationStore();
 
   // 1. Cargar/Sincronizar el historial al abrir el modal
   useEffect(() => {
@@ -39,6 +47,37 @@ export default function NotificationModalScreen() {
     if (session?.user) {
       await markAllAsRead(session.user.id);
     }
+  };
+
+  const handleDeleteNotification = async (notificationId: string) => {
+    try {
+      await deleteNotification(notificationId);
+    } catch {
+      Alert.alert('Error', 'No se pudo eliminar la notificación. Intenta de nuevo.');
+    }
+  };
+
+  const handleClearAll = () => {
+    Alert.alert(
+      'Vaciar bandeja',
+      '¿Deseas eliminar todas las notificaciones? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) return;
+            try {
+              await clearAllNotifications(session.user.id);
+            } catch {
+              Alert.alert('Error', 'No se pudieron eliminar las notificaciones. Intenta de nuevo.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // ─── RESOLUCIÓN VISUAL MEJORADA DE ALTO CONTRASTE ─────────────────────────
@@ -91,11 +130,22 @@ export default function NotificationModalScreen() {
           <Text style={s.headerTitle}>Notificaciones</Text>
           <Text style={s.headerSubtitle}>Entérate del estado de tus antojos</Text>
         </View>
-        {notifications.some(n => !n.is_read) && (
-          <TouchableOpacity onPress={handleMarkAllAsRead} activeOpacity={0.6}>
-            <Text style={s.markAllText}>Marcar todo como leído</Text>
-          </TouchableOpacity>
-        )}
+        <View style={s.headerActions}>
+          {notifications.some(n => !n.is_read) && (
+            <TouchableOpacity onPress={handleMarkAllAsRead} activeOpacity={0.6}>
+              <Text style={s.markAllText}>Marcar todo como leído</Text>
+            </TouchableOpacity>
+          )}
+          {notifications.length > 0 && (
+            <TouchableOpacity
+              onPress={handleClearAll}
+              activeOpacity={0.6}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="trash-outline" size={18} color={BRAND.rose} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* RENDERIZADO CONDICIONAL DE ESTADOS OPTIMIZADO */}
@@ -122,46 +172,58 @@ export default function NotificationModalScreen() {
             const visuals = getNotificationVisuals(item.type, item.is_read);
             
             return (
-              <TouchableOpacity
+              <View
                 key={item.id}
                 // ⚡ INTERSECCIÓN DE ESTILO: Si está leído aplicamos opacidad y fondo grisáceo
                 style={[
                   s.card, 
                   item.is_read ? s.cardRead : s.cardUnread
                 ]}
-                activeOpacity={0.85}
-                onPress={() => handleNotificationPress(item)}
               >
-                <View style={[s.iconContainer, { backgroundColor: visuals.bg }]}>
-                  {visuals.icon}
-                </View>
-
-                <View style={s.textContainer}>
-                  <View style={s.cardHeaderRow}>
-                    <Text 
-                      // ⚡ CAMBIO CROMÁTICO EN EL TEXTO SEGÚN LECTURA
-                      style={[s.cardTitle, item.is_read ? s.cardTitleRead : s.cardTitleUnread]} 
-                      numberOfLines={1}
-                    >
-                      {item.title}
-                    </Text>
-                    {!item.is_read && <View style={s.unreadDot} />}
+                <TouchableOpacity
+                  style={s.cardContent}
+                  activeOpacity={0.85}
+                  onPress={() => handleNotificationPress(item)}
+                >
+                  <View style={[s.iconContainer, { backgroundColor: visuals.bg }]}>
+                    {visuals.icon}
                   </View>
-                  
-                  <Text style={[s.cardBody, item.is_read && s.cardBodyRead]} numberOfLines={3}>
-                    {item.body}
-                  </Text>
-                  
-                  <Text style={s.cardTime}>
-                    {new Date(item.created_at).toLocaleDateString('es-CO', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+
+                  <View style={s.textContainer}>
+                    <View style={s.cardHeaderRow}>
+                      <Text 
+                        // ⚡ CAMBIO CROMÁTICO EN EL TEXTO SEGÚN LECTURA
+                        style={[s.cardTitle, item.is_read ? s.cardTitleRead : s.cardTitleUnread]} 
+                        numberOfLines={1}
+                      >
+                        {item.title}
+                      </Text>
+                      {!item.is_read && <View style={s.unreadDot} />}
+                    </View>
+                    
+                    <Text style={[s.cardBody, item.is_read && s.cardBodyRead]} numberOfLines={3}>
+                      {item.body}
+                    </Text>
+                    
+                    <Text style={s.cardTime}>
+                      {new Date(item.created_at).toLocaleDateString('es-CO', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.deleteButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  onPress={() => handleDeleteNotification(item.id)}
+                >
+                  <Ionicons name="close-outline" size={20} color={BRAND.textSecondary} />
+                </TouchableOpacity>
+              </View>
             );
           })}
         </ScrollView>
@@ -194,6 +256,11 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: BRAND.textSecondary,
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
   },
   markAllText: {
     fontSize: 13,
@@ -232,7 +299,17 @@ const s = StyleSheet.create({
     padding: 14,
     alignItems: 'flex-start',
     borderWidth: 1,
+    gap: 4,
+  },
+  cardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 14,
+  },
+  deleteButton: {
+    padding: 2,
+    marginTop: 2,
   },
   // ESTADO NUEVO (VIBRANTE Y ENFOCADO)
   cardUnread: {

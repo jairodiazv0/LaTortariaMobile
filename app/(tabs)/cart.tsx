@@ -20,6 +20,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { CartItem, useCartStore } from '../../store/useCartStore';
 import { supabase } from '../../lib/supabase';
+import { ALEGRA_IDENTIFICATION_TYPES, calculateNITVerificationDigit } from '../../lib/alegra/tax-utils';
 import { usePushPermissionRequest } from '../../hooks/usePushPermissionRequest'; // [PUSH v1]
 import { PushPermissionModal } from '../../components/PushPermissionModal'; // [PUSH v1]
 
@@ -215,6 +216,13 @@ export default function CartScreen() {
   const [deliverySlot, setDeliverySlot] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  // Facturación Electrónica DIAN
+  const [wantsInvoice, setWantsInvoice] = useState(false);
+  const [documentType, setDocumentType] = useState('CC');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [saveTaxInfo, setSaveTaxInfo] = useState(false);
+
   // Cupones
   const [couponCode, setCouponCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(0);
@@ -255,9 +263,17 @@ export default function CartScreen() {
         setEmail(user.email ?? '');
 
         const { data: profile } = await supabase
-          .from('profiles').select('full_name, phone').eq('id', user.id).single();
+          .from('profiles')
+          .select('full_name, phone, identification_type, identification_number')
+          .eq('id', user.id).single();
         if (profile?.full_name) setFullName(profile.full_name);
         if (profile?.phone) setPhone(profile.phone.replace(/\D/g, '').slice(0, 10));
+        if (profile?.identification_number) {
+          setDocumentNumber(profile.identification_number);
+          if (profile.identification_type) setDocumentType(profile.identification_type);
+          setWantsInvoice(true);
+          setSaveTaxInfo(true);
+        }
 
         const { data: addr } = await supabase
           .from('user_addresses').select('address')
@@ -409,6 +425,10 @@ export default function CartScreen() {
     if (!deliveryDate.trim()) { Alert.alert('Campo requerido', 'Selecciona una fecha de entrega.'); return false; }
     if (!deliverySlot.trim()) { Alert.alert('Campo requerido', 'Selecciona una franja horaria de entrega.'); return false; }
     if (!termsAccepted) { Alert.alert('Términos y condiciones', 'Debes aceptar los términos y condiciones para continuar con tu pedido.'); return false; }
+    if (wantsInvoice && !documentNumber.trim()) {
+      Alert.alert('Datos Incompletos', 'Ingresaste que deseas factura electrónica. Por favor indica el número de documento / NIT.');
+      return false;
+    }
     return true;
   };
 
@@ -481,6 +501,16 @@ export default function CartScreen() {
           coupon_id: appliedCouponId,
           channel: 'mobile_app', // [CHANNEL v1]
           terms_accepted: termsAccepted,
+          billing_address: wantsInvoice ? {
+            is_requested: true,
+            document_type: documentType,
+            document_number: documentNumber.trim(),
+            verification_digit: documentType === 'NIT' ? calculateNITVerificationDigit(documentNumber) : null,
+            business_name: businessName.trim() || fullName.trim(),
+          } : {
+            is_requested: false,
+          },
+          save_tax_info_to_profile: Boolean(wantsInvoice && saveTaxInfo && authenticatedUserId),
         }),
       });
 
@@ -901,6 +931,87 @@ export default function CartScreen() {
           </View>
         </View>
 
+        {/* Facturación Electrónica DIAN */}
+        <TouchableOpacity
+          style={styles.termsRow}
+          activeOpacity={0.8}
+          onPress={() => setWantsInvoice((v) => !v)}
+        >
+          <View style={[styles.checkbox, wantsInvoice && styles.checkboxChecked]}>
+            {wantsInvoice && <Feather name="check" size={14} color="#FFFFFF" />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.termsText}>¿Deseas factura electrónica a tu nombre o el de tu empresa?</Text>
+          </View>
+          <Feather name="file-text" size={18} color={BRAND.textSecondary} />
+        </TouchableOpacity>
+
+        {wantsInvoice && (
+          <View style={styles.invoiceSection}>
+            <Text style={styles.invoiceHint}>
+              Emitiremos tu factura electrónica DIAN directamente a nombre de este documento.
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Tipo de Documento</Text>
+              <View style={styles.docTypeRow}>
+                {ALEGRA_IDENTIFICATION_TYPES.filter(t => t.value === 'CC' || t.value === 'NIT').map((t) => (
+                  <TouchableOpacity
+                    key={t.value}
+                    style={[styles.slotCard, documentType === t.value && styles.slotCardSelected, { flex: 1 }]}
+                    onPress={() => setDocumentType(t.value)}
+                  >
+                    <Text style={[styles.slotText, documentType === t.value && styles.slotTextSelected]}>
+                      {t.value}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Número de Documento {documentType === 'NIT' ? '(NIT)' : '(Cédula)'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={documentNumber}
+                  onChangeText={setDocumentNumber}
+                  placeholder="Ej: 1020304050"
+                  placeholderTextColor={BRAND.textSecondary}
+                  keyboardType="number-pad"
+                />
+                {documentType === 'NIT' && documentNumber.trim().length > 0 && (
+                  <View style={styles.dvBadge}>
+                    <Text style={styles.dvBadgeText}>DV {calculateNITVerificationDigit(documentNumber) ?? '-'}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Razón Social (opcional)</Text>
+              <TextInput
+                style={styles.input}
+                value={businessName}
+                onChangeText={setBusinessName}
+                placeholder={fullName || 'Nombre o empresa a facturar'}
+                placeholderTextColor={BRAND.textSecondary}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.termsRow, { marginTop: 4 }]}
+              activeOpacity={0.8}
+              onPress={() => setSaveTaxInfo((v) => !v)}
+            >
+              <View style={[styles.checkbox, saveTaxInfo && styles.checkboxChecked]}>
+                {saveTaxInfo && <Feather name="check" size={14} color="#FFFFFF" />}
+              </View>
+              <Text style={styles.termsText}>Guardar estos datos en mi perfil para futuras compras.</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Aceptación de Términos y Condiciones */}
         <TouchableOpacity
           style={styles.termsRow}
@@ -1036,6 +1147,13 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: BRAND.orange, borderColor: BRAND.orange },
   termsText: { flex: 1, fontSize: 13, color: BRAND.textMuted, lineHeight: 19 },
   termsLink: { color: BRAND.orange, fontWeight: '700', textDecorationLine: 'underline' },
+
+  // Facturación Electrónica DIAN
+  invoiceSection: { backgroundColor: BRAND.surface, borderRadius: 14, borderWidth: 1, borderColor: BRAND.border, padding: 14, marginTop: 4, gap: 10 },
+  invoiceHint: { fontSize: 12, color: BRAND.textMuted, lineHeight: 18, marginBottom: 2 },
+  docTypeRow: { flexDirection: 'row', gap: 10 },
+  dvBadge: { backgroundColor: '#FFF5EE', borderWidth: 1, borderColor: BRAND.orange, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  dvBadgeText: { fontSize: 12, fontWeight: '700', color: BRAND.orange },
 
   // Checkout bar
   checkoutBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: BRAND.surface, borderTopWidth: 1, borderTopColor: BRAND.border, paddingTop: 14, paddingHorizontal: 20, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 10 },

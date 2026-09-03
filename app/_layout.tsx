@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { useCartAbandonmentNotification } from '@/hooks/useCartAbandonmentNotification';
 import { PushPermissionModal } from '@/components/PushPermissionModal';
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { useCouponStore } from '@/store/useCouponStore';
 
 export {
   ErrorBoundary,
@@ -213,6 +214,32 @@ function RootLayoutNav() {
             }
           } else {
             await supabase.auth.getSession();
+          }
+        }
+
+        // Obtener el access_token de la sesión recién confirmada
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.access_token) {
+          try {
+            const response = await fetch(
+              `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/auth/welcome-coupon`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${session.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            const result = await response.json();
+            
+            if (result.success && result.isNewlyGenerated) {
+              useCouponStore.getState().setWelcomeCouponData(result);
+            }
+          } catch (couponError) {
+            if (__DEV__) console.warn('[WelcomeCoupon] Error:', couponError);
+            // No bloquear el flujo de auth si esto falla
           }
         }
 

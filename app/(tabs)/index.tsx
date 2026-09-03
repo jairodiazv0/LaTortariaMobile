@@ -22,6 +22,7 @@ import { CategorySection } from '@/components/CategorySection';
 import { CategoryStrip } from '@/components/CategoryStrip';
 import { ProductCardData, ProductCardMobile } from '@/components/ProductCardMobile';
 import { TrustBar } from '@/components/TrustBar';
+import { WelcomeCouponModal } from '@/components/WelcomeCouponModal';
 import { BRAND as WEB_BRAND } from '@/constants/Colors';
 
 import { supabase } from '../../lib/supabase';
@@ -964,6 +965,7 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
       </Modal>
+      <WelcomeCouponModal />
     </View>
   );
 }

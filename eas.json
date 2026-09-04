@@ -18,14 +18,16 @@
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://vrgrdygdobgormdzfgti.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyZ3JkeWdkb2Jnb3JtZHpmZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MzIwMjAsImV4cCI6MjA5NTQwODAyMH0.P13l6Zo1-jnfzSIeY__THoNTkcPRJevb2UKwYm1izbQ"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyZ3JkeWdkb2Jnb3JtZHpmZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MzIwMjAsImV4cCI6MjA5NTQwODAyMH0.P13l6Zo1-jnfzSIeY__THoNTkcPRJevb2UKwYm1izbQ",
+        "EXPO_PUBLIC_API_BASE_URL": "https://www.latortaria.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://vrgrdygdobgormdzfgti.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyZ3JkeWdkb2Jnb3JtZHpmZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MzIwMjAsImV4cCI6MjA5NTQwODAyMH0.P13l6Zo1-jnfzSIeY__THoNTkcPRJevb2UKwYm1izbQ"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyZ3JkeWdkb2Jnb3JtZHpmZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MzIwMjAsImV4cCI6MjA5NTQwODAyMH0.P13l6Zo1-jnfzSIeY__THoNTkcPRJevb2UKwYm1izbQ",
+        "EXPO_PUBLIC_API_BASE_URL": "https://www.latortaria.com"
       }
     }
   },

@@ -68,7 +68,6 @@ interface DBProduct {
   id: string;
   name: string;
   slug: string;
-  category_id: string | null;
   short_description: string | null;
   is_healthy: boolean;
   preparation_hours: number;
@@ -76,7 +75,10 @@ interface DBProduct {
   rating_avg: number;
   review_count: number;
   tags: string[] | null;
-  categories: DBCategory | null;
+  product_categories?: {
+    category_id: string;
+    categories: { name: string } | null;
+  }[] | null;
   product_variants: DBProductVariant[];
   product_media: DBProductMedia[];
 }
@@ -94,8 +96,8 @@ interface Product {
   compareAtPrice?: number | null;
   imageUrl?: string | null;
   badge?: ProductBadge;
-  categoryId?: string | null;
-  categoryName?: string | null;
+  categoryIds?: string[];
+  categoryNames?: string[];
   shortDescription?: string;
   isHealthy?: boolean;
   isFeatured?: boolean;
@@ -518,7 +520,6 @@ export default function HomeScreen() {
             id,
             name,
             slug,
-            category_id,
             short_description,
             is_healthy,
             preparation_hours,
@@ -526,8 +527,11 @@ export default function HomeScreen() {
             rating_avg,
             review_count,
             tags,
-            categories (
-              name
+            product_categories (
+              category_id,
+              categories (
+                name
+              )
             ),
             product_variants (
               id,
@@ -595,8 +599,10 @@ export default function HomeScreen() {
               compareAtPrice: baseVariant.compare_at_price ? Number(baseVariant.compare_at_price) : null,
               imageUrl: coverImage?.url || null,
               badge,
-              categoryId: dbProd.category_id,
-              categoryName: dbProd.categories?.name || null,
+              categoryIds: (dbProd.product_categories || []).map((pc) => pc.category_id),
+              categoryNames: (dbProd.product_categories || [])
+                .map((pc) => pc.categories?.name)
+                .filter((n): n is string => !!n),
               shortDescription: dbProd.short_description || '',
               isHealthy: dbProd.is_healthy || false,
               isFeatured: dbProd.is_featured || false,
@@ -623,7 +629,7 @@ export default function HomeScreen() {
     const grouped = categories
       .map((cat) => ({
         category: cat,
-        products: products.filter((p) => p.categoryId === cat.id).slice(0, 10),
+        products: products.filter((p) => p.categoryIds?.includes(cat.id)).slice(0, 20),
       }))
       .filter((g) => g.products.length > 0);
     setCategoriesWithProducts(grouped);
@@ -632,7 +638,7 @@ export default function HomeScreen() {
   // ── Filtro por especialidad seleccionada ─────────────────
   const filteredProducts = useMemo(() => {
     if (!selectedCategoryId) return products;
-    return products.filter((p) => p.categoryId === selectedCategoryId);
+    return products.filter((p) => p.categoryIds?.includes(selectedCategoryId));
   }, [products, selectedCategoryId]);
 
   const featuredProducts = useMemo(

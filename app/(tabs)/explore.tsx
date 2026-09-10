@@ -59,7 +59,6 @@ interface DBProduct {
   id: string;
   name: string;
   slug: string;
-  category_id: string | null;
   short_description: string | null;
   is_healthy: boolean;
   preparation_hours: number;
@@ -68,7 +67,10 @@ interface DBProduct {
   review_count: number;
   tags: string[] | null;
   created_at?: string;
-  categories: DBCategory | null;
+  product_categories?: {
+    category_id: string;
+    categories: { name: string; slug: string } | null;
+  }[] | null;
   product_variants: DBProductVariant[];
   product_media: DBProductMedia[];
 }
@@ -86,9 +88,9 @@ interface Product {
   compareAtPrice?: number | null;
   imageUrl?: string | null;
   badge?: 'TOP' | 'NUEVO';
-  categoryId?: string | null;
-  categoryName?: string | null;
-  categorySlug?: string | null;
+  categoryIds?: string[];
+  categoryNames?: string[];
+  categorySlugs?: string[];
   shortDescription?: string;
   isHealthy?: boolean;
   isFeatured?: boolean;
@@ -145,9 +147,13 @@ function mapDBProductToProduct(dbProd: DBProduct): Product | null {
     minPrice,
     compareAtPrice: baseVariant.compare_at_price ? Number(baseVariant.compare_at_price) : null,
     imageUrl: coverImage?.url || null,
-    categoryId: dbProd.category_id,
-    categoryName: dbProd.categories?.name || null,
-    categorySlug: dbProd.categories?.slug || null,
+    categoryIds: (dbProd.product_categories || []).map((pc) => pc.category_id),
+    categoryNames: (dbProd.product_categories || [])
+      .map((pc) => pc.categories?.name)
+      .filter((n): n is string => !!n),
+    categorySlugs: (dbProd.product_categories || [])
+      .map((pc) => pc.categories?.slug)
+      .filter((s): s is string => !!s),
     shortDescription: dbProd.short_description || '',
     isHealthy: dbProd.is_healthy || false,
     isFeatured: dbProd.is_featured || false,
@@ -256,7 +262,6 @@ export default function ExploreScreen() {
             id,
             name,
             slug,
-            category_id,
             short_description,
             is_healthy,
             preparation_hours,
@@ -265,9 +270,12 @@ export default function ExploreScreen() {
             review_count,
             tags,
             created_at,
-            categories (
-              name,
-              slug
+            product_categories (
+              category_id,
+              categories (
+                name,
+                slug
+              )
             ),
             product_variants (
               id,
@@ -406,10 +414,10 @@ export default function ExploreScreen() {
       const { data, error } = await supabase
         .from('products')
         .select(`
-          id, name, slug, category_id, short_description, is_healthy,
+          id, name, slug, short_description, is_healthy,
           preparation_hours, is_featured, rating_avg, review_count,
           tags, created_at,
-          categories (name, slug),
+          product_categories ( category_id, categories ( name, slug ) ),
           product_variants (id, price, compare_at_price, is_active),
           product_media (url, type, is_cover)
         `)
@@ -436,10 +444,10 @@ export default function ExploreScreen() {
       const { data, error } = await supabase
         .from('products')
         .select(`
-          id, name, slug, category_id, short_description, is_healthy,
+          id, name, slug, short_description, is_healthy,
           preparation_hours, is_featured, rating_avg, review_count,
           tags, created_at,
-          categories (name, slug),
+          product_categories ( category_id, categories ( name, slug ) ),
           product_variants (id, price, compare_at_price, is_active),
           product_media (url, type, is_cover)
         `)
@@ -541,10 +549,10 @@ export default function ExploreScreen() {
         const { data: prodsData, error: prodsError } = await supabase
           .from('products')
           .select(`
-            id, name, slug, category_id, short_description, is_healthy,
+            id, name, slug, short_description, is_healthy,
             preparation_hours, is_featured, rating_avg, review_count,
             tags, created_at,
-            categories (name, slug),
+            product_categories ( category_id, categories ( name, slug ) ),
             product_variants (id, price, compare_at_price, is_active),
             product_media (url, type, is_cover)
           `)
@@ -577,7 +585,7 @@ export default function ExploreScreen() {
   const filteredProducts = useMemo(() => {
     if (!categorySlug && !categoryTag) return products;
     if (categorySlug) {
-      return products.filter((p) => p.categorySlug === categorySlug);
+      return products.filter((p) => p.categorySlugs?.includes(categorySlug));
     }
     if (categoryTag) {
       return products.filter((p) => p.tags.includes(categoryTag));

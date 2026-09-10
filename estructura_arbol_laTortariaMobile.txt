@@ -2133,6 +2133,7 @@
     |-- useClientOnlyValue.web.ts
     |-- useColorScheme.ts
     |-- useColorScheme.web.ts
+    |-- WelcomeCouponModal.tsx
 |-- constants
     |-- Colors.ts
 |-- Documentacion
@@ -2151,6 +2152,7 @@
     |-- supabase.ts
 |-- store
     |-- useCartStore.ts
+    |-- useCouponStore.ts
     |-- useFavoritesStore.ts
     |-- useNotificationStore.ts
     |-- useRecentSearchesStore.ts

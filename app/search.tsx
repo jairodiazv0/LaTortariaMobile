@@ -61,7 +61,6 @@ interface SearchDBProduct {
   id: string;
   name: string;
   slug: string;
-  category_id: string | null;
   short_description: string | null;
   is_healthy: boolean;
   preparation_hours: number;
@@ -70,7 +69,10 @@ interface SearchDBProduct {
   review_count: number;
   tags: string[] | null;
   created_at?: string;
-  categories: { name: string; slug: string } | null;
+  product_categories?: {
+    category_id: string;
+    categories: { name: string; slug: string } | null;
+  }[] | null;
   product_variants: SearchDBProductVariant[];
   product_media: SearchDBProductMedia[];
 }
@@ -146,10 +148,10 @@ function escapeLike(text: string): string {
 }
 
 const PRODUCT_SELECT = `
-  id, name, slug, category_id, short_description, is_healthy,
+  id, name, slug, short_description, is_healthy,
   preparation_hours, is_featured, rating_avg, review_count,
   tags, created_at,
-  categories (name, slug),
+  product_categories ( category_id, categories ( name, slug ) ),
   product_variants (id, price, compare_at_price, is_active),
   product_media (url, type, is_cover)
 `;

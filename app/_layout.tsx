@@ -14,6 +14,8 @@ import { useCartAbandonmentNotification } from '@/hooks/useCartAbandonmentNotifi
 import { PushPermissionModal } from '@/components/PushPermissionModal';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useCouponStore } from '@/store/useCouponStore';
+import { useVersionCheck } from '@/hooks/useVersionCheck';
+import { UpdateRequiredModal } from '@/components/UpdateRequiredModal';
 
 export {
   ErrorBoundary,
@@ -157,6 +159,7 @@ function RootLayoutNav() {
 
   useNotificationObserver();
   useNativeNotificationSetup();
+  const { updateRequired, storeUrl } = useVersionCheck();
 
   // 3. NUEVO: Listener de sesión global para poblar la campanita en Background
   useEffect(() => {
@@ -219,7 +222,7 @@ function RootLayoutNav() {
 
         // Obtener el access_token de la sesión recién confirmada
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.access_token) {
           try {
             const response = await fetch(
@@ -233,7 +236,7 @@ function RootLayoutNav() {
               }
             );
             const result = await response.json();
-            
+
             if (result.success && result.isNewlyGenerated) {
               useCouponStore.getState().setWelcomeCouponData(result);
             }
@@ -286,6 +289,7 @@ function RootLayoutNav() {
         onAccept={onAcceptAbandonmentPush}
         onDecline={onDeclineAbandonmentPush}
       />
+      <UpdateRequiredModal visible={updateRequired} storeUrl={storeUrl} />
     </ThemeProvider>
   );
 }

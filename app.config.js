@@ -8,11 +8,17 @@ module.exports = {
   expo: {
     name: "LaTortaria",
     slug: "LaTortariaMobile",
-    version: "1.0.10",
+    version: "1.0.11",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "latortariamobile",
     userInterfaceStyle: "automatic",
+    runtimeVersion: {
+      policy: "appVersion"
+    },
+    updates: {
+      url: "https://u.expo.dev/6c414a2a-d0f3-48e4-b16d-f831176c09f3"
+    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.jairodiazv0.LaTortariaMobile",

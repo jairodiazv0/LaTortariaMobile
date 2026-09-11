@@ -16,6 +16,7 @@ import { useNotificationStore } from '@/store/useNotificationStore';
 import { useCouponStore } from '@/store/useCouponStore';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { UpdateRequiredModal } from '@/components/UpdateRequiredModal';
+import { UpdateAvailableBanner } from '@/components/UpdateAvailableBanner';
 
 export {
   ErrorBoundary,
@@ -159,7 +160,7 @@ function RootLayoutNav() {
 
   useNotificationObserver();
   useNativeNotificationSetup();
-  const { updateRequired, storeUrl } = useVersionCheck();
+  const { updateRequired, updateAvailable, storeUrl, dismissUpdateBanner } = useVersionCheck();
 
   // 3. NUEVO: Listener de sesión global para poblar la campanita en Background
   useEffect(() => {
@@ -290,6 +291,7 @@ function RootLayoutNav() {
         onDecline={onDeclineAbandonmentPush}
       />
       <UpdateRequiredModal visible={updateRequired} storeUrl={storeUrl} />
+      <UpdateAvailableBanner visible={updateAvailable} storeUrl={storeUrl} onDismiss={dismissUpdateBanner} />
     </ThemeProvider>
   );
 }

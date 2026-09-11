@@ -50,3 +50,5 @@ estructura_arbol.txt
 
 # Carpetas de respaldo o backend externas a la App Móvil
 supabase_LaTortariaMobile/
+
+google-service-account.json

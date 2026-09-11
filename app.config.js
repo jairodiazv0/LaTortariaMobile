@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: "LaTortaria",
     slug: "LaTortariaMobile",
-    version: "1.0.11",
+    version: "1.0.12",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "latortariamobile",
@@ -82,6 +82,15 @@ module.exports = {
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png" //Asegura que Android tenga el ícono de marca en las notificaciones push
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
         }
       ]
     ],

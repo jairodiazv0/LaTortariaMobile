@@ -19,14 +19,14 @@ export function WelcomeCouponModal() {
 
   // Cálculo Dinámico de Días de Urgencia
   const daysLeft = Math.max(1, Math.ceil((new Date(welcomeCouponData.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-  
+
   // Formatear el valor según el tipo: 'percentage' → "10%", 'fixed'/'amount'/otros → "$10.000 COP"
   const isPercentage = welcomeCouponData.discount_type === 'percentage';
   const discountValue = welcomeCouponData.discount_value ?? 0;
   const formattedDiscount = isPercentage
     ? `${discountValue}%`
     : `$${discountValue.toLocaleString('es-CO')} COP`;
-    
+
   const formattedMinOrder = `$${(welcomeCouponData.min_order_amount ?? 0).toLocaleString('es-CO')} COP`;
 
   return (
@@ -42,11 +42,11 @@ export function WelcomeCouponModal() {
           </TouchableOpacity>
 
           <View style={styles.iconContainer}>
-             <Ionicons name="gift-outline" size={32} color={BRAND.moss} />
+            <Ionicons name="gift-outline" size={32} color={BRAND.moss} />
           </View>
 
           <Text style={styles.title}>¡Bienvenido al Club LaTortaria!</Text>
-          
+
           <Text style={styles.body}>
             Tu regalo de <Text style={styles.highlight}>{formattedDiscount}</Text> ha sido asegurado con éxito.
           </Text>
@@ -54,7 +54,7 @@ export function WelcomeCouponModal() {
           <View style={styles.ticket}>
             <View style={[styles.cutout, styles.cutoutLeft]} />
             <View style={[styles.cutout, styles.cutoutRight]} />
-            
+
             <Text style={styles.ticketLabel}>CÓDIGO DE REGALO</Text>
             <Text style={styles.ticketCode}>{welcomeCouponData.code}</Text>
 
@@ -73,11 +73,11 @@ export function WelcomeCouponModal() {
             Válido por los próximos <Text style={{ fontWeight: 'bold' }}>{daysLeft} días</Text> en pedidos superiores a <Text style={{ fontWeight: 'bold' }}>{formattedMinOrder}</Text>. Tu código también fue enviado a tu correo electrónico.
           </Text>
 
-          <TouchableOpacity 
-            style={styles.primaryButton} 
-            activeOpacity={0.85} 
+          <TouchableOpacity
+            style={styles.primaryButton}
+            activeOpacity={0.85}
             onPress={clearWelcomeCoupon}>
-            <Text style={styles.primaryButtonText}>Continuar explorando pasteles</Text>
+            <Text style={styles.primaryButtonText}>Continuar explorando</Text>
           </TouchableOpacity>
         </View>
       </View>

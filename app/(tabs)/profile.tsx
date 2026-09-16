@@ -52,6 +52,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import { useCartStore } from '@/store/useCartStore';
@@ -742,6 +743,28 @@ export default function ProfileScreen() {
   // IMPORTANTE: skipBrowserRedirect: true es obligatorio. Sin él, el SDK intenta
   // hacer una redirección de ventana del navegador de escritorio que crashea en
   // entornos nativos.
+  const createSessionFromUrl = async (url: string) => {
+    const { params, errorCode } = QueryParams.getQueryParams(url);
+    if (errorCode) throw new Error(errorCode);
+
+    // Caso PKCE: viene un "code" en los query params
+    if (params.code) {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(params.code);
+      if (error) throw error;
+      return data.session;
+    }
+
+    // Caso implícito: vienen access_token y refresh_token
+    const { access_token, refresh_token } = params;
+    if (!access_token) return null;
+    const { data, error } = await supabase.auth.setSession({
+      access_token,
+      refresh_token,
+    });
+    if (error) throw error;
+    return data.session;
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
     setSubmitting(true);
@@ -762,7 +785,22 @@ export default function ProfileScreen() {
       if (data?.url) {
         // Abre el navegador nativo seguro. El resultado se maneja vía deep link
         // en _layout.tsx; no es necesario procesar el resultado de openBrowserAsync.
-        await WebBrowser.openBrowserAsync(data.url);
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          'latortariamobile://auth/callback'
+        );
+        if (result.type === 'success' && result.url) {
+          try {
+            await createSessionFromUrl(result.url);
+          } catch (sessionError: any) {
+            const { data: sessionCheck } = await supabase.auth.getSession();
+            if (!sessionCheck?.session) {
+              // Solo mostramos el error si realmente no se logueó por ningún camino
+              Alert.alert('Error con Google', sessionError.message ?? 'No se pudo crear la sesión con Google.');
+            }
+            // Si ya hay sesión, fue el listener de _layout.tsx quien la creó primero; se ignora.
+          }
+        }
       }
     } catch (e: any) {
       Alert.alert('Error con Google', e.message ?? 'No se pudo iniciar el flujo de Google. Intenta de nuevo.');

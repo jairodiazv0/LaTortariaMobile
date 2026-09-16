@@ -38,6 +38,14 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json"
+      },
+      "ios": {
+        "appleId": "comercial@latortaria.com",
+        "ascAppId": "6812516728",
+        "appleTeamId": "TUFH9N6MG5",
+        "ascApiKeyPath": "./AuthKey_2CV3L83H2K.p8",
+        "ascApiKeyIssuerId": "14408f04-b967-4e15-a381-e3f3c0d8bf2a",
+        "ascApiKeyId": "2CV3L83H2K"
       }
     }
   }

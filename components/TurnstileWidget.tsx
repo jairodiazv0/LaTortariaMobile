@@ -37,6 +37,7 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 
@@ -176,7 +177,11 @@ export function TurnstileWidget({ onSuccess, onError }: TurnstileWidgetProps) {
         // 👇 Necesario: Turnstile necesita cookies entre latortaria.com y challenges.cloudflare.com
         thirdPartyCookiesEnabled
         sharedCookiesEnabled
-        userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+        userAgent={
+          Platform.OS === 'android'
+            ? 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
+            : undefined
+        }
       />
     </View>
   );

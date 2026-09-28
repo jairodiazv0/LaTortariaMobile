@@ -70,6 +70,11 @@ export function CategorySection({ category, products, onPressProduct }: Category
             <Text style={styles.categoryTitle} numberOfLines={3}>
               {category.name}
             </Text>
+            {category.description?.trim() ? (
+              <Text style={styles.categoryDescription} numberOfLines={3}>
+                {category.description.trim()}
+              </Text>
+            ) : null}
             <View style={styles.categoryArrowContainer}>
               <Feather name="arrow-right" size={14} color="#FFFFFF" />
             </View>
@@ -138,6 +143,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  categoryDescription: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   categoryArrowContainer: {
     alignSelf: 'flex-start',

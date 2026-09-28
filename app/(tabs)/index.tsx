@@ -72,6 +72,7 @@ interface DBProduct {
   is_healthy: boolean;
   preparation_hours: number;
   is_featured: boolean;
+  featured_sort_order: number | null;
   rating_avg: number;
   review_count: number;
   tags: string[] | null;
@@ -101,6 +102,7 @@ interface Product {
   shortDescription?: string;
   isHealthy?: boolean;
   isFeatured?: boolean;
+  featuredSortOrder?: number | null;
   variantsCount?: number;
   tags: string[];
 }
@@ -524,6 +526,7 @@ export default function HomeScreen() {
             is_healthy,
             preparation_hours,
             is_featured,
+            featured_sort_order,
             rating_avg,
             review_count,
             tags,
@@ -606,6 +609,7 @@ export default function HomeScreen() {
               shortDescription: dbProd.short_description || '',
               isHealthy: dbProd.is_healthy || false,
               isFeatured: dbProd.is_featured || false,
+              featuredSortOrder: dbProd.featured_sort_order ?? null,
               variantsCount: activeVariants.length,
               tags: dbProd.tags || [],
             };
@@ -641,10 +645,15 @@ export default function HomeScreen() {
     return products.filter((p) => p.categoryIds?.includes(selectedCategoryId));
   }, [products, selectedCategoryId]);
 
-  const featuredProducts = useMemo(
-    () => filteredProducts.filter((p) => p.isFeatured),
-    [filteredProducts]
-  );
+  const featuredProducts = useMemo(() => {
+    const featured = filteredProducts.filter((p) => p.isFeatured);
+    return featured.sort((a, b) => {
+      if (a.featuredSortOrder == null && b.featuredSortOrder == null) return 0;
+      if (a.featuredSortOrder == null) return 1;
+      if (b.featuredSortOrder == null) return -1;
+      return a.featuredSortOrder - b.featuredSortOrder;
+    });
+  }, [filteredProducts]);
 
   const discoveryProducts = useMemo(() => {
     const sectionIds = new Set(

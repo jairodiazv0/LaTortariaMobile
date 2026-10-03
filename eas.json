@@ -37,7 +37,8 @@
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./google-service-account.json"
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal"
       },
       "ios": {
         "appleId": "comercial@latortaria.com",

@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: "LaTortaria",
     slug: "LaTortariaMobile",
-    version: "1.0.12",
+    version: "1.1.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "latortariamobile",
@@ -76,6 +76,8 @@ module.exports = {
         }
       ],
       "expo-image",
+      "expo-font",          // ← nuevo
+      "expo-status-bar",    // ← nuevo
       "expo-secure-store",
       "expo-web-browser",
       [

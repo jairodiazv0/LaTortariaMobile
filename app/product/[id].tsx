@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { getOrCreateGuestWheelId } from '../../lib/wheelIdentity';
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
 
@@ -103,6 +104,7 @@ export default function ProductDetailScreen() {
   // Estados de datos
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [welcomeCoupon, setWelcomeCoupon] = useState<{ code: string; benefit: number; min_order_amount: number } | null>(null);
+  const [wheelAvailable, setWheelAvailable] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [product, setProduct] = useState<DBProduct | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
@@ -121,6 +123,23 @@ export default function ProductDetailScreen() {
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const imageScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: enabled } = await supabase.rpc('is_wheel_enabled');
+        if (!enabled) { setWheelAvailable(false); return; }
+        const guestId = await getOrCreateGuestWheelId();
+        const { data: spun } = await supabase.rpc('has_wheel_spin', {
+          p_user_id: null,
+          p_guest_device_id: guestId,
+        });
+        setWheelAvailable(!spun);
+      } catch {
+        setWheelAvailable(false);
+      }
+    })();
+  }, [currentUser]);
 
   useEffect(() => {
     const fetchWelcomeCoupon = async () => {
@@ -651,7 +670,7 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {(!currentUser && welcomeCoupon) ? (
+          {(!currentUser && wheelAvailable) ? (
             <TouchableOpacity
               style={styles.wheelEntryBanner}
               activeOpacity={0.88}
@@ -662,7 +681,7 @@ export default function ProductDetailScreen() {
               <View style={styles.wheelEntryCenter}>
                 <Text style={styles.wheelEntryTitle}>¡Gira la Ruleta de la Dulzura!</Text>
                 <Text style={styles.wheelEntrySubtitle}>
-                  Gana hasta {formatCOP(welcomeCoupon.benefit)} en tu primer antojo 🎁
+                  Gira y gana un premio sorpresa en tu primer antojo 🎁
                 </Text>
               </View>
               <View style={styles.wheelEntryRight}>

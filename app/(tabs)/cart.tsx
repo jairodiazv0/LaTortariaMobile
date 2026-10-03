@@ -20,11 +20,14 @@ import { Feather } from '@expo/vector-icons';
 
 import { CartItem, useCartStore } from '../../store/useCartStore';
 import { supabase } from '../../lib/supabase';
+import { getOrCreateGuestWheelId } from '../../lib/wheelIdentity';
 import { ALEGRA_IDENTIFICATION_TYPES, calculateNITVerificationDigit } from '../../lib/alegra/tax-utils';
 import { usePushPermissionRequest } from '../../hooks/usePushPermissionRequest'; // [PUSH v1]
 import { PushPermissionModal } from '../../components/PushPermissionModal'; // [PUSH v1]
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
+
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://www.latortaria.com';
 
 const BRAND = {
   orange: '#FF6B00',
@@ -230,6 +233,8 @@ export default function CartScreen() {
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [isRevalidatingCoupon, setIsRevalidatingCoupon] = useState(false);
+  const lastValidatedSubtotalRef = useRef<number | null>(null);
 
   const [showPushModal, setShowPushModal] = useState(false); // [PUSH v1]
   const { checkPushEligibility, requestPushPermission } = usePushPermissionRequest(); // [PUSH v1]
@@ -334,7 +339,7 @@ export default function CartScreen() {
         await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
 
         const res = await fetch(
-          `https://www.latortaria.com/api/orders/${orderId}/status`,
+          `${API_BASE}/api/orders/${orderId}/status`,
           { headers: { 'x-platform': 'mobile' } }
         );
         if (!res.ok) continue;
@@ -350,8 +355,8 @@ export default function CartScreen() {
           Alert.alert(
             '¡Pedido confirmado! 🎉',
             'Tu pago fue aprobado. La cocina ya está preparando tu orden.',
-            [{ 
-              text: '¡Perfecto!', 
+            [{
+              text: '¡Perfecto!',
               onPress: () => {
                 if (eligible) {
                   setShowPushModal(true); // [PUSH v1]
@@ -460,8 +465,8 @@ export default function CartScreen() {
       if (phone.trim()) {
         const { error: profileUpdateError } = await supabase
           .from('profiles')
-          .upsert({ 
-            id: authenticatedUserId, 
+          .upsert({
+            id: authenticatedUserId,
             phone: phone.trim(),
             full_name: fullName.trim()
           }, { onConflict: 'id' });
@@ -480,7 +485,7 @@ export default function CartScreen() {
         instructions: item.customization?.instructions ?? null,
       }));
 
-      const response = await fetch('https://www.latortaria.com/api/checkout/initiate', {
+      const response = await fetch(`${API_BASE}/api/checkout/initiate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -528,7 +533,7 @@ export default function CartScreen() {
       setCurrentOrderId(order_id);
 
       const redirectUrl = encodeURIComponent(
-        `https://www.latortaria.com/checkout/mobile-redirect?id=${order_id}`
+        `${API_BASE}/checkout/mobile-redirect?id=${order_id}`
       );
       const wompiUrl =
         `https://checkout.wompi.co/p/` +
@@ -566,6 +571,77 @@ export default function CartScreen() {
     }
   };
 
+  // ── Helper: llamar al endpoint validate-coupon (sin side-effects de UX) ────
+  const callValidateCoupon = async (
+    code: string,
+    orderAmount: number
+  ): Promise<
+    | { ok: true; couponId: string; discountAmount: number }
+    | { ok: false; error: string; network?: boolean }
+  > => {
+    try {
+      const {
+        data: { session: couponSession },
+      } = await supabase.auth.getSession();
+      const authenticatedUserId = couponSession?.user?.id ?? null;
+
+      const response = await fetch(`${API_BASE}/api/checkout/validate-coupon`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-platform': 'mobile',
+          ...(couponSession?.access_token ? { Authorization: `Bearer ${couponSession.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          code: code.trim().toUpperCase(),
+          orderAmount,
+          userId: authenticatedUserId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        return { ok: false, error: data.error || 'Cupón no válido o expirado.' };
+      }
+      return { ok: true, couponId: data.couponId, discountAmount: data.discountAmount };
+    } catch {
+      return { ok: false, error: 'Error de conexión al validar el cupón.', network: true };
+    }
+  };
+
+  // ── Efecto: revalidar cupón cuando cambia el subtotal ──────────────────────
+  useEffect(() => {
+    if (!appliedCouponCode) return;
+    if (lastValidatedSubtotalRef.current === subtotal) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIsRevalidatingCoupon(true);
+      const result = await callValidateCoupon(appliedCouponCode, subtotal);
+      if (cancelled) return;
+
+      if (result.ok) {
+        lastValidatedSubtotalRef.current = subtotal;
+        setAppliedDiscount(result.discountAmount);
+        setAppliedCouponId(result.couponId);
+      } else if (!result.network) {
+        // El cupón ya no aplica a este carrito: se quita con aviso
+        setAppliedDiscount(0);
+        setAppliedCouponId(null);
+        setAppliedCouponCode(null);
+        lastValidatedSubtotalRef.current = null;
+        setCouponError(`Quitamos el cupón porque ya no aplica a tu carrito: ${result.error}`);
+      }
+      // Si es error de red, se conserva el estado actual: el servidor lo valida de nuevo al pagar.
+      setIsRevalidatingCoupon(false);
+    }, 400); // debounce para cambios rápidos de cantidad
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      setIsRevalidatingCoupon(false);
+    };
+  }, [subtotal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Validar cupón contra el backend ───────────────────────────────────────
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -575,29 +651,21 @@ export default function CartScreen() {
       const {
         data: { session: couponSession },
       } = await supabase.auth.getSession();
-      const authenticatedUserId = couponSession?.user?.id ?? null;
 
-      const response = await fetch('https://www.latortaria.com/api/checkout/validate-coupon', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-platform': 'mobile',
-          ...(couponSession?.access_token ? { Authorization: `Bearer ${couponSession.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          code: couponCode.trim().toUpperCase(),
-          orderAmount: subtotal,
-          userId: authenticatedUserId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        setCouponError(data.error || 'Cupón no válido o expirado.');
+      if (couponSession?.user) {
+        const guestId = await getOrCreateGuestWheelId();
+        await supabase.rpc('claim_wheel_coupon', { p_guest_device_id: guestId });
+      }
+
+      const result = await callValidateCoupon(couponCode.trim(), subtotal);
+      if (!result.ok) {
+        setCouponError(result.error);
         setAppliedDiscount(0); setAppliedCouponId(null); setAppliedCouponCode(null);
       } else {
-        setAppliedDiscount(data.discountAmount);
-        setAppliedCouponId(data.couponId);
+        setAppliedDiscount(result.discountAmount);
+        setAppliedCouponId(result.couponId);
         setAppliedCouponCode(couponCode.toUpperCase().trim());
+        lastValidatedSubtotalRef.current = subtotal;
         setCouponCode('');
       }
     } catch {
@@ -609,6 +677,7 @@ export default function CartScreen() {
 
   const removeCoupon = () => {
     setAppliedDiscount(0); setAppliedCouponId(null); setAppliedCouponCode(null); setCouponError(null);
+    lastValidatedSubtotalRef.current = null;
   };
 
   const handleClearCart = () => {
@@ -633,8 +702,8 @@ export default function CartScreen() {
           Por favor no cierres la aplicación.
         </Text>
 
-        <PushPermissionModal 
-          visible={showPushModal} 
+        <PushPermissionModal
+          visible={showPushModal}
           onAccept={async () => {
             await requestPushPermission(); // [PUSH v1]
             await SecureStore.setItemAsync('lt_push_permission_asked', 'true'); // [PUSH v1]
@@ -646,7 +715,7 @@ export default function CartScreen() {
             setShowPushModal(false); // [PUSH v1]
             router.replace('/'); // [PUSH v1]
           }}
-        /> 
+        />
       </View>
     );
   }
@@ -1050,12 +1119,14 @@ export default function CartScreen() {
       {/* Botón fijo de pago */}
       <View style={[styles.checkoutBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
         <TouchableOpacity
-          style={[styles.checkoutButton, !termsAccepted && styles.checkoutButtonDisabled]}
+          style={[styles.checkoutButton, (!termsAccepted || isRevalidatingCoupon) && styles.checkoutButtonDisabled]}
           activeOpacity={0.88}
           onPress={handleConfirmAndPay}
-          disabled={!termsAccepted}
+          disabled={!termsAccepted || isRevalidatingCoupon}
         >
-          <Text style={styles.checkoutButtonText}>Pagar {formatCOP(total)}</Text>
+          {isRevalidatingCoupon
+            ? <ActivityIndicator size="small" color="#FFFFFF" />
+            : <Text style={styles.checkoutButtonText}>Pagar {formatCOP(total)}</Text>}
           <Feather name="credit-card" size={18} color="#FFFFFF" />
         </TouchableOpacity>
       </View>

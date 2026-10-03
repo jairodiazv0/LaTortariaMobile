@@ -13,6 +13,7 @@ import {
   Modal,
   Easing,
   Share,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -24,12 +25,11 @@ import { ProductCardData, ProductCardMobile } from '@/components/ProductCardMobi
 import { TrustBar } from '@/components/TrustBar';
 import { WelcomeCouponModal } from '@/components/WelcomeCouponModal';
 import { BRAND as WEB_BRAND } from '@/constants/Colors';
+import { getOrCreateGuestWheelId } from '../../lib/wheelIdentity';
 
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
 import { useNotificationStore } from '../../store/useNotificationStore';
-
-const WHEEL_ENABLED = false; // 🔒 Ruleta de la Dulzura desactivada temporalmente — cambiar a true para reactivar
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -170,19 +170,19 @@ function HomeHeader({
 
         {/* Sección Derecha: Campanita Premium + Avatar */}
         <View style={styles.rightSection}>
-          
+
           {/* BOTÓN DE LA CAMPANITA */}
-          <TouchableOpacity 
-            style={styles.iconButton} 
+          <TouchableOpacity
+            style={styles.iconButton}
             activeOpacity={0.7}
             onPress={() => router.push('/modal')} // Abre el modal nativo existente temporalmente
           >
-            <Ionicons 
-              name={unreadCount > 0 ? "notifications" : "notifications-outline"} 
-              size={24} 
-              color={BRAND.ink} 
+            <Ionicons
+              name={unreadCount > 0 ? "notifications" : "notifications-outline"}
+              size={24}
+              color={BRAND.ink}
             />
-            
+
             {/* BADGE DE NOTIFICACIONES PENDIENTES */}
             {unreadCount > 0 && (
               <View style={styles.badge}>
@@ -270,6 +270,25 @@ export default function HomeScreen() {
 
   const [welcomeCoupon, setWelcomeCoupon] = useState<{ code: string; benefit: number; min_order_amount: number } | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [wheelPrizes, setWheelPrizes] = useState<any[]>([]);
+  const [spinResult, setSpinResult] = useState<any>(null);
+
+  const WHEEL_COLORS = useMemo(() => [
+    { color: '#2D6A4F', textColor: '#FFFFFF' },
+    { color: '#A85A42', textColor: '#FFFFFF' },
+    { color: '#FAF7F2', textColor: '#6B5744' },
+    { color: '#D9A441', textColor: '#FFFFFF' },
+    { color: '#6B5744', textColor: '#FFFFFF' },
+    { color: '#C8745A', textColor: '#FFFFFF' },
+  ], []);
+
+  const dynamicWheelSegments = useMemo(() => {
+    return wheelPrizes.map((p, i) => ({
+      label: p.title,
+      color: WHEEL_COLORS[i % WHEEL_COLORS.length].color,
+      textColor: WHEEL_COLORS[i % WHEEL_COLORS.length].textColor,
+    }));
+  }, [wheelPrizes, WHEEL_COLORS]);
 
   const handleCloseWheelModal = useCallback(() => {
     setShowWheelModal(false);
@@ -364,8 +383,8 @@ export default function HomeScreen() {
     Animated.stagger(20, animations).start();
   }, [confettiParticles]);
 
-  const handleSpin = useCallback(() => {
-    if (isSpinning || hasSpun) return;
+  const handleSpin = useCallback(async () => {
+    if (isSpinning || hasSpun || wheelPrizes.length === 0) return;
     setIsSpinning(true);
 
     const pointerAnim = Animated.loop(
@@ -376,12 +395,30 @@ export default function HomeScreen() {
     );
     pointerAnim.start();
 
-    // Cálculo determinístico: SIEMPRE debe detenerse en WHEEL_PRIZE_INDEX
-    // (el bono real parametrizado en BD), con una micro-variación aleatoria
-    // dentro del propio segmento para que cada giro se sienta orgánico,
-    // sin riesgo de caer en el borde de la porción vecina.
-    const prizeCenterAngle = WHEEL_PRIZE_INDEX * WHEEL_SLICE_ANGLE + WHEEL_SLICE_ANGLE / 2;
-    const safeMargin = WHEEL_SLICE_ANGLE / 2 - 10; // deja 10° de margen a cada lado
+    const guestId = await getOrCreateGuestWheelId();
+    const { data: rawData, error } = await supabase.rpc('spin_wheel', {
+      p_user_id: currentUser?.id || null,
+      p_guest_device_id: guestId
+    });
+
+    if (error || !rawData) {
+      console.error('[WHEEL] error en spin_wheel:', error);
+      setIsSpinning(false);
+      pointerAnim.stop();
+      Alert.alert('Ruleta no disponible', 'No pudimos registrar tu giro. Intenta más tarde.');
+      setShowWheelModal(false);
+      return;
+    }
+
+    const result = Array.isArray(rawData) ? rawData[0] : rawData;
+    setSpinResult(result);
+
+    const prizeIndex = wheelPrizes.findIndex(p => p.title === result.prize_title);
+    const targetIndex = prizeIndex >= 0 ? prizeIndex : 0;
+
+    const wheelSliceAngle = 360 / wheelPrizes.length;
+    const prizeCenterAngle = targetIndex * wheelSliceAngle + wheelSliceAngle / 2;
+    const safeMargin = wheelSliceAngle / 2 - 10;
     const randomOffset = (Math.random() * 2 - 1) * safeMargin;
     const baseRotation = (360 - prizeCenterAngle + randomOffset + 360) % 360;
     const EXTRA_FULL_SPINS = 5;
@@ -401,7 +438,7 @@ export default function HomeScreen() {
       launchConfetti();
       setTimeout(launchConfetti, 600);
     });
-  }, [isSpinning, hasSpun, wheelRotation, pointerBounce, launchConfetti]);
+  }, [isSpinning, hasSpun, wheelRotation, pointerBounce, launchConfetti, wheelPrizes, currentUser]);
 
   const handleShareWhatsApp = useCallback(async () => {
     const refId = currentUser?.id ?? 'guest';
@@ -456,15 +493,40 @@ export default function HomeScreen() {
       fetchProfileName(user);
       setCurrentUser(user);
 
-      // ── Disparador automático de la Ruleta (solo invitados, y solo tras
-      // confirmar que no hay sesión activa; nunca antes de saberlo) ──────────
-      if (WHEEL_ENABLED && !user) {
-        setShowWheelModal(true);
-      }
+      const checkWheel = async () => {
+        const { data: enabled, error: eEnabled } = await supabase.rpc('is_wheel_enabled');
+        if (eEnabled || !enabled) {
+          return;
+        }
+
+        const guestId = await getOrCreateGuestWheelId();
+
+        // Si ya hay sesión, vincula primero el giro/cupón que este dispositivo hizo como invitado
+        if (user) {
+          await supabase.rpc('claim_wheel_coupon', {
+            p_guest_device_id: guestId,
+          });
+        }
+
+        const { data: hasSpunDb } = await supabase.rpc('has_wheel_spin', {
+          p_user_id: user?.id || null,
+          p_guest_device_id: guestId,   // siempre: bloquea también si este dispositivo ya giró
+        });
+
+        if (!hasSpunDb) {
+          const { data: prizes } = await supabase.rpc('get_active_wheel_prizes');
+
+          if (prizes && prizes.length > 0) {
+            setWheelPrizes(prizes);
+            setShowWheelModal(true);
+          }
+        }
+      };
+      checkWheel();
     });
 
     // Escuchar cambios globales: login, logout, OAuth callback
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       const user = session?.user ?? null;
       fetchProfileName(user);
       setCurrentUser(user);
@@ -473,6 +535,15 @@ export default function HomeScreen() {
       // registrarse desde el propio modal), la cerramos de inmediato.
       if (user) {
         setShowWheelModal(false);
+
+        if (event === 'SIGNED_IN') {
+          setTimeout(async () => {
+            const gid = await getOrCreateGuestWheelId();
+            await supabase.rpc('claim_wheel_coupon', {
+              p_guest_device_id: gid,
+            });
+          }, 0);
+        }
       }
     });
 
@@ -742,16 +813,16 @@ export default function HomeScreen() {
 
             {!selectedCategoryId
               ? categoriesWithProducts.map(({ category, products: catProducts }) => (
-                  <CategorySection
-                    key={category.id}
-                    category={category}
-                    products={catProducts.map(toProductCardData)}
-                    onPressProduct={(id) => {
-                      const product = products.find((p) => p.id === id);
-                      if (product) handlePressProduct(product);
-                    }}
-                  />
-                ))
+                <CategorySection
+                  key={category.id}
+                  category={category}
+                  products={catProducts.map(toProductCardData)}
+                  onPressProduct={(id) => {
+                    const product = products.find((p) => p.id === id);
+                    if (product) handlePressProduct(product);
+                  }}
+                />
+              ))
               : null}
 
             {discoveryProducts.length > 0 ? (
@@ -841,24 +912,28 @@ export default function HomeScreen() {
                         },
                       ]}>
                       <Svg width={WHEEL_SIZE} height={WHEEL_SIZE} viewBox={`0 0 ${WHEEL_SIZE} ${WHEEL_SIZE}`}>
-                        {WHEEL_SEGMENTS.map((seg, i) => (
-                          <Path
-                            key={i}
-                            d={describeWheelSlice(
-                              WHEEL_RADIUS,
-                              WHEEL_RADIUS,
-                              WHEEL_RADIUS,
-                              i * WHEEL_SLICE_ANGLE,
-                              (i + 1) * WHEEL_SLICE_ANGLE
-                            )}
-                            fill={seg.color}
-                            stroke="#FFFFFF"
-                            strokeWidth={2}
-                          />
-                        ))}
+                        {dynamicWheelSegments.map((seg, i) => {
+                          const sliceAngle = 360 / dynamicWheelSegments.length;
+                          return (
+                            <Path
+                              key={i}
+                              d={describeWheelSlice(
+                                WHEEL_RADIUS,
+                                WHEEL_RADIUS,
+                                WHEEL_RADIUS,
+                                i * sliceAngle,
+                                (i + 1) * sliceAngle
+                              )}
+                              fill={seg.color}
+                              stroke="#FFFFFF"
+                              strokeWidth={2}
+                            />
+                          );
+                        })}
                       </Svg>
-                      {WHEEL_SEGMENTS.map((seg, i) => {
-                        const midAngle = i * WHEEL_SLICE_ANGLE + WHEEL_SLICE_ANGLE / 2;
+                      {dynamicWheelSegments.map((seg, i) => {
+                        const sliceAngle = 360 / dynamicWheelSegments.length;
+                        const midAngle = i * sliceAngle + sliceAngle / 2;
                         return (
                           <View
                             key={i}
@@ -913,17 +988,17 @@ export default function HomeScreen() {
                     ))}
                   </View>
                   <Text style={styles.winnerTrophy}>🏆</Text>
-                  <Text style={styles.winnerTitle}>¡DIOS MÍO!</Text>
+                  <Text style={styles.winnerTitle}>{spinResult?.prize_title || '¡FELICIDADES!'}</Text>
                   <Text style={styles.winnerSubtitle}>
-                    ¡Tienes una suerte increíble! Acabas de ganar el Bono Oro de{' '}
-                    <Text style={styles.winnerAmount}>
-                      {welcomeCoupon ? formatCOP(welcomeCoupon.benefit) : '$15.000'}
-                    </Text>
+                    ¡Tienes una suerte increíble! Acabas de ganar: {spinResult?.prize_description || ''}{' '}
+                    {spinResult?.discount_type === 'percentage'
+                      ? <Text style={styles.winnerAmount}>{spinResult?.discount_value}% OFF</Text>
+                      : <Text style={styles.winnerAmount}>{formatCOP(spinResult?.discount_value ?? 0)}</Text>}
                   </Text>
                   <View style={styles.couponCodeBox}>
                     <Text style={styles.couponCodeLabel}>Tu código secreto:</Text>
                     <Text style={styles.couponCode}>
-                      {welcomeCoupon?.code ?? 'WELCOME_2026'}
+                      {spinResult?.coupon_code ?? ''}
                     </Text>
                   </View>
                   <View style={styles.timerBox}>
@@ -931,20 +1006,34 @@ export default function HomeScreen() {
                       ⏰ {formatTimer(timerSeconds)}
                     </Animated.Text>
                     <Text style={styles.timerCaption}>
-                      Tu premio expira en {formatTimer(timerSeconds)}. Regístrate ahora para{' '}
-                      <Text style={styles.timerHighlight}>congelar y asegurar este bono</Text>{' '}
-                      en tu cuenta antes de que regrese a la cocina.
+                      Tu premio expira el {spinResult?.expires_at ? new Date(spinResult.expires_at).toLocaleDateString('es-CO') : formatTimer(timerSeconds)}.{!currentUser && ' Regístrate ahora para '}
+                      {!currentUser && <Text style={styles.timerHighlight}>congelar y asegurar este bono</Text>}
+                      {!currentUser && ' en tu cuenta antes de que regrese a la cocina.'}
+                      {currentUser && ' ¡Disfrútalo en tu próxima compra!'}
                     </Text>
                   </View>
-                  <TouchableOpacity
-                    style={styles.freezeButton}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      setShowWheelModal(false);
-                      router.push('/(tabs)/profile');
-                    }}>
-                    <Text style={styles.freezeButtonText}>❄️ Congelar mi Premio y Registrarme</Text>
-                  </TouchableOpacity>
+
+                  {currentUser ? (
+                    <TouchableOpacity
+                      style={styles.freezeButton}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        setShowWheelModal(false);
+                      }}>
+                      <Text style={styles.freezeButtonText}>Continuar</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.freezeButton}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        setShowWheelModal(false);
+                        router.push('/(tabs)/profile');
+                      }}>
+                      <Text style={styles.freezeButtonText}>❄️ Congelar mi Premio y Registrarme</Text>
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
                     style={styles.viralToggle}
                     onPress={() => setShareExpanded((v) => !v)}
@@ -988,28 +1077,9 @@ export default function HomeScreen() {
 // ─── Estilos ─────────────────────────────────────────────────────────────────
 
 
-// ─── Segmentos de la ruleta (paleta de marca oficial) ────────────────────────
-// Mezcla de "premios" con alto valor percibido (productos gratis + bonos).
-// El resultado real SIEMPRE es el bono parametrizado en BD (WELCOME_2026);
-// el índice WHEEL_PRIZE_INDEX marca qué porción debe ganar el usuario.
-const WHEEL_SEGMENTS = [
-  { label: '🍰\nCheesecake\nentero', color: '#2D6A4F', textColor: '#FFFFFF' },
-  { label: '🎂\nTorta\nPremium', color: '#A85A42', textColor: '#FFFFFF' },
-  { label: '🍪\nCaja\nGourmet', color: '#FAF7F2', textColor: '#6B5744' },
-  { label: '💰\nBono\n$50.000', color: '#D9A441', textColor: '#FFFFFF' },
-  { label: '🧁\nDocena de\nCupcakes', color: '#6B5744', textColor: '#FFFFFF' },
-  { label: '🎁\nBono\n$15.000', color: '#C8745A', textColor: '#FFFFFF' },
-] as const;
-
-// Índice de la porción que SIEMPRE gana (el bono real parametrizado en BD).
-// Si cambias el orden de WHEEL_SEGMENTS, actualiza este índice para que
-// siga apuntando a "🎁 Bono $15.000".
-const WHEEL_PRIZE_INDEX = 5;
-
 // Geometría del disco SVG
 const WHEEL_SIZE = 230;
 const WHEEL_RADIUS = WHEEL_SIZE / 2;
-const WHEEL_SLICE_ANGLE = 360 / WHEEL_SEGMENTS.length;
 
 /** Convierte un ángulo (medido en sentido horario desde las 12 en punto) a coordenadas x,y sobre el círculo. */
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {

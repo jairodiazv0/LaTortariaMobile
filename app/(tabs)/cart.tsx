@@ -225,6 +225,8 @@ export default function CartScreen() {
   const [deliverySlot, setDeliverySlot] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [marketingOptin, setMarketingOptin] = useState(false); // [CONSENT v1] opcional, desmarcado por defecto
+  // [CONSENT v1] Estado de consentimiento ya existente: la casilla solo se muestra si NO está suscrito
+  const [consentStatus, setConsentStatus] = useState<'loading' | 'subscribed' | 'not_subscribed'>('loading');
 
   // Facturación Electrónica DIAN
   const [wantsInvoice, setWantsInvoice] = useState(false);
@@ -300,6 +302,26 @@ export default function CartScreen() {
       }
     }
     loadUserData();
+  }, []);
+
+  // ── [CONSENT v1] ¿El usuario ya autorizó correos comerciales? (falla abierto: ante error, muestra la casilla)
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConsentStatus() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { if (!cancelled) setConsentStatus('not_subscribed'); return; }
+        const res = await fetch(`${API_BASE}/api/consent/email-status`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const json = res.ok ? await res.json() : null;
+        if (!cancelled) setConsentStatus(json?.subscribed === true ? 'subscribed' : 'not_subscribed');
+      } catch {
+        if (!cancelled) setConsentStatus('not_subscribed');
+      }
+    }
+    loadConsentStatus();
+    return () => { cancelled = true; };
   }, []);
 
   // ── SPEC: Recuperación post-RAM eviction (cold start) ─────────────────────
@@ -1124,6 +1146,15 @@ export default function CartScreen() {
         </TouchableOpacity>
 
         {/* [CONSENT v1] Autorización opcional de correos comerciales (no bloquea el pago) */}
+        {consentStatus === 'subscribed' && (
+          <View style={styles.consentActiveRow}>
+            <Feather name="check-circle" size={16} color={BRAND.orange} />
+            <Text style={styles.termsText}>
+              Ya recibes nuestras ofertas y novedades por correo. Puedes cambiarlo cuando quieras desde el enlace de baja de cualquier correo.
+            </Text>
+          </View>
+        )}
+        {consentStatus === 'not_subscribed' && (
         <TouchableOpacity
           style={styles.termsRow}
           activeOpacity={0.8}
@@ -1148,6 +1179,7 @@ export default function CartScreen() {
             .
           </Text>
         </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* Botón fijo de pago */}
@@ -1251,6 +1283,7 @@ const styles = StyleSheet.create({
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: BRAND.border, alignItems: 'center', justifyContent: 'center', marginTop: 1, backgroundColor: BRAND.background },
   checkboxChecked: { backgroundColor: BRAND.orange, borderColor: BRAND.orange },
   termsText: { flex: 1, fontSize: 13, color: BRAND.textMuted, lineHeight: 19 },
+  consentActiveRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 14, paddingVertical: 10, marginTop: 4 },
   termsLink: { color: BRAND.orange, fontWeight: '700', textDecorationLine: 'underline' },
 
   // Facturación Electrónica DIAN

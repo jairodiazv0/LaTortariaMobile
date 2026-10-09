@@ -29,6 +29,12 @@ import { PushPermissionModal } from '../../components/PushPermissionModal'; // [
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://www.latortaria.com';
 
+// [CONSENT v1] Texto canónico (idéntico a CONSENT_CHECKBOX_COPY en latortaria-ecommerce/lib/consent/constants.ts)
+const MARKETING_CONSENT_LABEL =
+  'Quiero recibir ofertas, cupones y novedades de La Tortaria por correo electrónico. Puedo retirar mi autorización cuando quiera.';
+const MARKETING_CONSENT_LEGAL_TEXT = 'política de tratamiento de datos';
+const MARKETING_CONSENT_LEGAL_URL = 'https://www.latortaria.com/legal/privacidad';
+
 const BRAND = {
   orange: '#FF6B00',
   primary: '#FF6B00',
@@ -218,6 +224,7 @@ export default function CartScreen() {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliverySlot, setDeliverySlot] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [marketingOptin, setMarketingOptin] = useState(false); // [CONSENT v1] opcional, desmarcado por defecto
 
   // Facturación Electrónica DIAN
   const [wantsInvoice, setWantsInvoice] = useState(false);
@@ -506,6 +513,7 @@ export default function CartScreen() {
           coupon_id: appliedCouponId,
           channel: 'mobile_app', // [CHANNEL v1]
           terms_accepted: termsAccepted,
+          marketing_optin: marketingOptin, // [CONSENT v1] solo true/false; el servidor nunca registra opt_out desde aquí
           billing_address: wantsInvoice ? {
             is_requested: true,
             document_type: documentType,
@@ -1112,6 +1120,32 @@ export default function CartScreen() {
               Política de Privacidad
             </Text>
             {' '}de La Tortaria.
+          </Text>
+        </TouchableOpacity>
+
+        {/* [CONSENT v1] Autorización opcional de correos comerciales (no bloquea el pago) */}
+        <TouchableOpacity
+          style={styles.termsRow}
+          activeOpacity={0.8}
+          onPress={() => setMarketingOptin((v) => !v)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: marketingOptin }}
+        >
+          <View style={[styles.checkbox, marketingOptin && styles.checkboxChecked]}>
+            {marketingOptin && <Feather name="check" size={14} color="#FFFFFF" />}
+          </View>
+          <Text style={styles.termsText}>
+            {MARKETING_CONSENT_LABEL} Consulta nuestra{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={(e) => {
+                e.stopPropagation();
+                WebBrowser.openBrowserAsync(MARKETING_CONSENT_LEGAL_URL);
+              }}
+            >
+              {MARKETING_CONSENT_LEGAL_TEXT}
+            </Text>
+            .
           </Text>
         </TouchableOpacity>
       </ScrollView>

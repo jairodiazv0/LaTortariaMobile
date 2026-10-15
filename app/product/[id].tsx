@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getOrCreateGuestWheelId } from '../../lib/wheelIdentity';
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '../../store/useCartStore';
+import { ga4 } from '../../lib/analytics'; // [ANALYTICS-GA4]
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -316,6 +317,20 @@ export default function ProductDetailScreen() {
     return pricePerUnit * quantity;
   }, [pricePerUnit, quantity]);
 
+  // [ANALYTICS-GA4] view_item: una vez por producto, cuando ya hay variante seleccionada.
+  const viewedProductRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!product || !selectedVariant || viewedProductRef.current === product.id) return;
+    viewedProductRef.current = product.id;
+    ga4.viewItem({
+      productId: product.id,
+      productName: product.name,
+      variantName: getVariantName(selectedVariant),
+      price: Number(selectedVariant.price),
+      quantity: 1,
+    });
+  }, [product, selectedVariant]);
+
   const handleToggleFavorite = async () => {
     if (!userId) {
       Alert.alert(
@@ -342,6 +357,16 @@ export default function ProductDetailScreen() {
             interaction_type: 'favorite',
           });
         if (error) throw error;
+        // [ANALYTICS-GA4] Solo cuando el favorito se guardó correctamente
+        if (product && selectedVariant) {
+          ga4.addToWishlist({
+            productId: product.id,
+            productName: product.name,
+            variantName: getVariantName(selectedVariant),
+            price: Number(selectedVariant.price),
+            quantity: 1,
+          });
+        }
       } else {
         const { error } = await supabase
           .from('user_interactions')
@@ -381,6 +406,16 @@ export default function ProductDetailScreen() {
         price: a.price,
       })),
       image_url: coverImage?.url,
+    });
+
+    // [ANALYTICS-GA4] Sin dedicatoria ni instrucciones: solo si es personalizado (sí/no)
+    ga4.addToCart({
+      productId: product.id,
+      productName: product.name,
+      variantName: getVariantName(selectedVariant),
+      price: pricePerUnit,
+      quantity,
+      isCustomized: Boolean(customText.trim() || cookingInstructions.trim()),
     });
 
     router.push('/(tabs)/cart');
@@ -1192,4 +1227,4 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
-});
+});

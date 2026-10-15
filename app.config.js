@@ -8,7 +8,9 @@ module.exports = {
   expo: {
     name: "LaTortaria",
     slug: "LaTortariaMobile",
-    version: "1.1.1",
+    // [ANALYTICS-GA4] Subida de versión OBLIGATORIA: Firebase es un módulo nativo y runtimeVersion
+    // usa la política appVersion; así las apps 1.1.1 ya instaladas nunca reciben este JS por OTA.
+    version: "1.2.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "latortariamobile",
@@ -22,6 +24,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.jairodiazv0.LaTortariaMobile",
+      googleServicesFile: "./GoogleService-Info.plist", // [ANALYTICS-GA4]
       infoPlist: {
         CFBundleURLTypes: [
           {
@@ -37,6 +40,7 @@ module.exports = {
       },
       predictiveBackGestureEnabled: false,
       package: "com.jairodiazv0.LaTortariaMobile",
+      googleServicesFile: "./google-services.json", // [ANALYTICS-GA4]
       intentFilters: [
         {
           action: "VIEW",
@@ -80,6 +84,24 @@ module.exports = {
       "expo-status-bar",    // ← nuevo
       "expo-secure-store",
       "expo-web-browser",
+      // [ANALYTICS-GA4] Firebase Analytics. disableSPM + useFrameworks static (CocoaPods) evita el
+      // conflicto "SPM + static linkage" de React Native Firebase v26; withoutAdIdSupport = sin IDFA.
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ],
+      [
+        "@react-native-firebase/analytics",
+        {
+          "ios": {
+            "withoutAdIdSupport": true
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -92,6 +114,9 @@ module.exports = {
           "android": {
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true
+          },
+          "ios": {
+            "useFrameworks": "static" // [ANALYTICS-GA4]
           }
         }
       ]

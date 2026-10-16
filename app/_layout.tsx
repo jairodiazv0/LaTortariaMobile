@@ -1,5 +1,5 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useRootNavigationState } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useRootNavigationState, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import * as Linking from 'expo-linking';
@@ -17,6 +17,7 @@ import { useCouponStore } from '@/store/useCouponStore';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { UpdateRequiredModal } from '@/components/UpdateRequiredModal';
 import { UpdateAvailableBanner } from '@/components/UpdateAvailableBanner';
+import { ga4 } from '@/lib/analytics'; // [ANALYTICS-GA4]
 
 export {
   ErrorBoundary,
@@ -160,6 +161,17 @@ function RootLayoutNav() {
 
   useNotificationObserver();
   useNativeNotificationSetup();
+
+  // [ANALYTICS-GA4] Inicialización única y vista de pantalla por patrón de ruta
+  // (p. ej. "(tabs)/cart", "product/[id]"): sin IDs reales ni datos personales.
+  const segments = useSegments();
+  const screenName = segments.join('/');
+  useEffect(() => {
+    void ga4.init();
+  }, []);
+  useEffect(() => {
+    if (screenName) ga4.screenView(screenName);
+  }, [screenName]);
   const { updateRequired, updateAvailable, storeUrl, dismissUpdateBanner } = useVersionCheck();
 
   // 3. NUEVO: Listener de sesión global para poblar la campanita en Background
@@ -294,4 +306,4 @@ function RootLayoutNav() {
       <UpdateAvailableBanner visible={updateAvailable} storeUrl={storeUrl} onDismiss={dismissUpdateBanner} />
     </ThemeProvider>
   );
-}
+}

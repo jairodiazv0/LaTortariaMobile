@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,7 @@ import { getOrCreateGuestWheelId } from '../../lib/wheelIdentity';
 import { ALEGRA_IDENTIFICATION_TYPES, calculateNITVerificationDigit } from '../../lib/alegra/tax-utils';
 import { usePushPermissionRequest } from '../../hooks/usePushPermissionRequest'; // [PUSH v1]
 import { PushPermissionModal } from '../../components/PushPermissionModal'; // [PUSH v1]
+import { ga4, type Ga4ItemInput } from '../../lib/analytics'; // [ANALYTICS-GA4]
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -94,6 +95,19 @@ function getAvailableDeliveryDays() {
   }
 
   return days;
+}
+
+// [ANALYTICS-GA4] Ítems del carrito en formato GA4. Sin dedicatoria ni instrucciones:
+// solo la bandera de personalización. Precio unitario = base + complementos.
+function toGa4Items(list: CartItem[]): Ga4ItemInput[] {
+  return list.map((i) => ({
+    productId: i.product_id,
+    productName: i.name,
+    variantName: i.size_label,
+    price: i.base_price + (i.add_ons?.reduce((sum, a) => sum + a.price, 0) ?? 0),
+    quantity: i.quantity,
+    isCustomized: Boolean(i.customization?.custom_text?.trim() || i.customization?.instructions?.trim()),
+  }));
 }
 
 // ─── Subcomponente: CartItemCard ──────────────────────────────────────────────
@@ -252,6 +266,15 @@ export default function CartScreen() {
   const shipping = subtotal >= freeShippingThreshold ? 0 : shippingCost;
   const total = subtotal + shipping - appliedDiscount;
 
+  // [ANALYTICS-GA4] view_cart cada vez que la pestaña del carrito se muestra (paso "cart")
+  useFocusEffect(
+    useCallback(() => {
+      if (checkoutStep !== 'cart') return;
+      const current = useCartStore.getState().items;
+      if (current.length > 0) ga4.viewCart(toGa4Items(current));
+    }, [checkoutStep])
+  );
+
   // ── Pre-poblar datos del usuario autenticado ──────────────────────────────
   useEffect(() => {
     async function loadUserData() {
@@ -376,6 +399,19 @@ export default function CartScreen() {
         const data = await res.json();
 
         if (data.status === 'paid') {
+          // [ANALYTICS-GA4] purchase SOLO con el pago confirmado por el backend. Los datos exactos
+          // (total cobrado, envío, descuento) se guardaron al iniciar el pago; si faltan, se usa el
+          // contenido actual del carrito. Se lee ANTES de vaciar el carrito.
+          const cartBeforeClear = toGa4Items(useCartStore.getState().items);
+          ga4
+            .purchase(orderId, {
+              value: cartBeforeClear.reduce((sum, i) => sum + i.price * i.quantity, 0),
+              shipping: 0,
+              discount: 0,
+              items: cartBeforeClear,
+            })
+            .catch(() => {});
+
           await SecureStore.deleteItemAsync('pending_order_id');
           clearCart();
 
@@ -489,6 +525,10 @@ export default function CartScreen() {
 
       const authenticatedUserId = session.user.id;
 
+      // [ANALYTICS-GA4] Datos de entrega validados y sesión activa
+      const analyticsItems = toGa4Items(items);
+      ga4.addShippingInfo(analyticsItems, shipping === 0 ? 'envio_gratis' : 'envio_estandar', appliedCouponCode);
+
       // ⚡ ¡CORREGIDO! Cambiamos .update() por .upsert() para asegurar la creación de la fila.
       // Pasamos también el full_name obligatorio por si es el primer registro del cliente.
       if (phone.trim()) {
@@ -561,6 +601,16 @@ export default function CartScreen() {
       // SPEC: Persistir order_id ANTES de abrir el browser (mitigación RAM eviction)
       await SecureStore.setItemAsync('pending_order_id', order_id);
       setCurrentOrderId(order_id);
+
+      // [ANALYTICS-GA4] Se guarda lo necesario para el purchase (sobrevive al cierre de la app)
+      ga4.addPaymentInfo(analyticsItems, appliedCouponCode);
+      await ga4.rememberPendingPurchase(order_id, {
+        value: Number(amount_in_cents) / 100,
+        shipping,
+        discount: appliedDiscount,
+        coupon: appliedCouponCode ?? undefined,
+        items: analyticsItems,
+      });
 
       const redirectUrl = encodeURIComponent(
         `${API_BASE}/checkout/mobile-redirect?id=${order_id}`
@@ -688,6 +738,7 @@ export default function CartScreen() {
       }
 
       const result = await callValidateCoupon(couponCode.trim(), subtotal);
+      ga4.couponResult(couponCode, result.ok); // [ANALYTICS-GA4]
       if (!result.ok) {
         setCouponError(result.error);
         setAppliedDiscount(0); setAppliedCouponId(null); setAppliedCouponCode(null);
@@ -708,6 +759,19 @@ export default function CartScreen() {
   const removeCoupon = () => {
     setAppliedDiscount(0); setAppliedCouponId(null); setAppliedCouponCode(null); setCouponError(null);
     lastValidatedSubtotalRef.current = null;
+  };
+
+  // [ANALYTICS-GA4] remove_from_cart: se registra antes de quitar el ítem del store
+  const handleRemoveItem = (cartId: string) => {
+    const target = items.find((i) => i.cart_id === cartId);
+    if (target) ga4.removeFromCart(toGa4Items([target])[0]);
+    removeItem(cartId);
+  };
+
+  // [ANALYTICS-GA4] begin_checkout al pasar del carrito a los datos de entrega
+  const handleContinueToDelivery = () => {
+    ga4.beginCheckout(toGa4Items(items), appliedCouponCode);
+    setCheckoutStep('delivery');
   };
 
   const handleClearCart = () => {
@@ -792,7 +856,7 @@ export default function CartScreen() {
                 key={item.cart_id}
                 item={item}
                 onUpdateQuantity={updateQuantity}
-                onRemove={removeItem}
+                onRemove={handleRemoveItem}
               />
             ))}
           </View>
@@ -885,7 +949,7 @@ export default function CartScreen() {
           <TouchableOpacity
             style={styles.checkoutButton}
             activeOpacity={0.88}
-            onPress={() => setCheckoutStep('delivery')}>
+            onPress={handleContinueToDelivery}>
             <Text style={styles.checkoutButtonText}>Continuar compra</Text>
             <Feather name="arrow-right" size={20} color="#FFFFFF" />
           </TouchableOpacity>
@@ -1326,4 +1390,4 @@ const styles = StyleSheet.create({
   verifyingContainer: { flex: 1, backgroundColor: BRAND.background, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },
   verifyingTitle: { fontSize: 20, fontWeight: '800', color: BRAND.textPrimary, marginTop: 8 },
   verifyingSubtitle: { fontSize: 14, color: BRAND.textSecondary, textAlign: 'center', lineHeight: 22 },
-});
+});

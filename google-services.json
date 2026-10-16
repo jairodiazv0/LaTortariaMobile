@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "158918936971",
+    "project_id": "latortariacom",
+    "storage_bucket": "latortariacom.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:158918936971:android:230c7b5e68cca5c399878e",
+        "android_client_info": {
+          "package_name": "com.jairodiazv0.LaTortariaMobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbTL6Ih8Ad9sRwMBgzNVwjZH4xYC-h-Y8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

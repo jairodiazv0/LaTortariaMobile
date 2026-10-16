@@ -41,6 +41,8 @@ module.exports = {
       predictiveBackGestureEnabled: false,
       package: "com.jairodiazv0.LaTortariaMobile",
       googleServicesFile: "./google-services.json", // [ANALYTICS-GA4]
+      // [ANALYTICS-GA4] Sin ID de publicidad: la app no lo usa (Play Console lo declara así).
+      blockedPermissions: ["com.google.android.gms.permission.AD_ID"],
       intentFilters: [
         {
           action: "VIEW",

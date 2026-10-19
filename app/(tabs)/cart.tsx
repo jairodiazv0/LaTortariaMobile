@@ -530,6 +530,23 @@ export default function CartScreen() {
     return true;
   };
 
+  // Consulta puntual del estado del pedido (usada al cerrar Wompi manualmente).
+  // Devuelve 'paid' | 'cancelled' | 'pending' | 'unknown'. Nunca lanza.
+  const fetchOrderStatusOnce = async (orderId: string): Promise<'paid' | 'cancelled' | 'pending' | 'unknown'> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
+        headers: { 'x-platform': 'mobile' },
+      });
+      if (!res.ok) return 'unknown';
+      const data = await res.json();
+      if (data.status === 'paid') return 'paid';
+      if (data.status === 'cancelled') return 'cancelled';
+      return 'pending';
+    } catch {
+      return 'unknown';
+    }
+  };
+
   // ── Función principal: Iniciar Pago ────────────────────────────────────────
   const handleConfirmAndPay = async () => {
     if (!validateDeliveryForm()) return;
@@ -663,7 +680,23 @@ export default function CartScreen() {
 
       // SPEC 1: La promesa resolvió — determinar causa del cierre
       if (!closedByDeepLinkRef.current) {
-        // El usuario cerró el browser manualmente sin completar el pago
+        // Cierre manual: el pago pudo aprobarse justo antes. Verificar hasta 3 veces (≈6 s)
+        // antes de afirmar que se canceló (el webhook de Wompi puede tardar unos segundos).
+        setCheckoutStep('verifying');
+        let finalStatus: 'paid' | 'cancelled' | 'pending' | 'unknown' = 'unknown';
+        for (let i = 0; i < 3; i++) {
+          finalStatus = await fetchOrderStatusOnce(order_id);
+          if (finalStatus === 'paid' || finalStatus === 'cancelled') break;
+          if (i < 2) await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        if (finalStatus === 'paid') {
+          // Mismo flujo que el deep link: el polling confirma, dispara GA4 purchase,
+          // vacía el carrito y ofrece el modal de consentimiento.
+          startOrderStatusPolling(order_id);
+          return;
+        }
+
         await SecureStore.deleteItemAsync('pending_order_id');
         Alert.alert(
           'Pago cancelado',

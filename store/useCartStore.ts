@@ -27,6 +27,7 @@ export interface CartItem {
   size_label: string; // Ej: "10 Porciones"
   base_price: number;
   quantity: number;
+  min_purchase_quantity?: number;
   customization?: Customization;
   add_ons: AddOn[];
   image_url?: string;

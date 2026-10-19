@@ -145,6 +145,7 @@ interface CartItemCardProps {
 }
 
 function CartItemCard({ item, onUpdateQuantity, onRemove }: CartItemCardProps) {
+  const minQty = item.min_purchase_quantity ?? 1;
   const addOnsCost = item.add_ons?.reduce((sum, a) => sum + a.price, 0) ?? 0;
   const lineTotal = (item.base_price + addOnsCost) * item.quantity;
 
@@ -211,18 +212,27 @@ function CartItemCard({ item, onUpdateQuantity, onRemove }: CartItemCardProps) {
 
         <View style={styles.cardFooter}>
           <Text style={styles.cardLineTotal}>{formatCOP(lineTotal)}</Text>
-          <View style={styles.qtySelector}>
-            <TouchableOpacity
-              style={styles.qtyBtn}
-              onPress={() => onUpdateQuantity(item.cart_id, item.quantity - 1)}>
-              <Feather name="minus" size={14} color={BRAND.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.qtyText}>{item.quantity}</Text>
-            <TouchableOpacity
-              style={styles.qtyBtn}
-              onPress={() => onUpdateQuantity(item.cart_id, item.quantity + 1)}>
-              <Feather name="plus" size={14} color={BRAND.textPrimary} />
-            </TouchableOpacity>
+          <View style={styles.qtyWrapper}>
+            {minQty > 1 && (
+              <Text style={styles.minQtyLabel}>Mínimo {minQty}</Text>
+            )}
+            <View style={styles.qtySelector}>
+              <TouchableOpacity
+                style={[styles.qtyBtn, item.quantity <= minQty && { opacity: 0.35 }]}
+                onPress={() => {
+                  if (item.quantity - 1 >= minQty) {
+                    onUpdateQuantity(item.cart_id, item.quantity - 1);
+                  }
+                }}>
+                <Feather name="minus" size={14} color={BRAND.textPrimary} />
+              </TouchableOpacity>
+              <Text style={styles.qtyText}>{item.quantity}</Text>
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => onUpdateQuantity(item.cart_id, item.quantity + 1)}>
+                <Feather name="plus" size={14} color={BRAND.textPrimary} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -550,6 +560,17 @@ export default function CartScreen() {
   // ── Función principal: Iniciar Pago ────────────────────────────────────────
   const handleConfirmAndPay = async () => {
     if (!validateDeliveryForm()) return;
+
+    for (const item of items) {
+      const min = item.min_purchase_quantity ?? 1;
+      if (item.quantity < min) {
+        Alert.alert(
+          'Compra mínima',
+          `"${item.name}" requiere una compra mínima de ${min} unidades. Ajusta la cantidad en tu carrito.`
+        );
+        return;
+      }
+    }
 
     try {
       const {
@@ -1390,6 +1411,8 @@ const styles = StyleSheet.create({
   customizationText: { flex: 1, fontSize: 11, color: '#6B3FA0', fontStyle: 'italic', lineHeight: 15 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   cardLineTotal: { fontSize: 15, fontWeight: '800', color: BRAND.textPrimary },
+  qtyWrapper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  minQtyLabel: { fontSize: 11, fontWeight: '600', color: BRAND.orange },
   qtySelector: { flexDirection: 'row', alignItems: 'center', backgroundColor: BRAND.background, borderRadius: 10, borderWidth: 1, borderColor: BRAND.border, paddingHorizontal: 4, height: 32 },
   qtyBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   qtyText: { fontSize: 14, fontWeight: '700', color: BRAND.textPrimary, minWidth: 22, textAlign: 'center' },

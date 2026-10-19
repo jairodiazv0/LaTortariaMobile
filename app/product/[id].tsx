@@ -58,6 +58,7 @@ interface DBProduct {
   short_description?: string;
   long_description?: string;
   is_customizable: boolean;
+  min_purchase_quantity: number;
   product_variants: DBProductVariant[];
   product_media: DBProductMedia[];
 }
@@ -205,6 +206,7 @@ export default function ProductDetailScreen() {
             short_description,
             long_description,
             is_customizable,
+            min_purchase_quantity,
             product_variants (
               id,
               price,
@@ -234,6 +236,7 @@ export default function ProductDetailScreen() {
 
         const typedProd = prodData as unknown as DBProduct;
         setProduct(typedProd);
+        setQuantity(Math.max(1, Number(typedProd.min_purchase_quantity) || 1));
 
         const activeVariants = typedProd.product_variants.filter((v) => v.is_active);
         if (activeVariants.length > 0) {
@@ -317,6 +320,8 @@ export default function ProductDetailScreen() {
     return pricePerUnit * quantity;
   }, [pricePerUnit, quantity]);
 
+  const minQty = Math.max(1, Number(product?.min_purchase_quantity) || 1);
+
   // [ANALYTICS-GA4] view_item: una vez por producto, cuando ya hay variante seleccionada.
   const viewedProductRef = useRef<string | null>(null);
   useEffect(() => {
@@ -396,6 +401,7 @@ export default function ProductDetailScreen() {
       size_label: getVariantName(selectedVariant), // <-- Usamos la nueva función 
       base_price: Number(selectedVariant.price),
       quantity,
+      min_purchase_quantity: minQty,
       customization: {
         custom_text: customText || undefined,
         instructions: cookingInstructions || undefined,
@@ -576,6 +582,12 @@ export default function ProductDetailScreen() {
 
           <Text style={styles.productName}>{product.name}</Text>
 
+          {minQty > 1 && (
+            <Text style={styles.minPurchaseNotice}>
+              Compra mínima: {minQty} unidades
+            </Text>
+          )}
+
           {!!(product.short_description || product.long_description) && (
             <Text style={styles.productDescription}>
               {product.long_description || product.short_description}
@@ -734,9 +746,9 @@ export default function ProductDetailScreen() {
 
           <View style={styles.quantitySelector}>
             <TouchableOpacity
-              style={styles.qtyButton}
+              style={[styles.qtyButton, quantity <= minQty && { opacity: 0.35 }]}
               activeOpacity={0.8}
-              onPress={() => setQuantity(Math.max(1, quantity - 1))}>
+              onPress={() => setQuantity(Math.max(minQty, quantity - 1))}>
               <Feather name="minus" size={16} color="#1A1A1A" />
             </TouchableOpacity>
             <Text style={styles.qtyText}>{quantity}</Text>
@@ -955,6 +967,12 @@ const styles = StyleSheet.create({
     color: BRAND.ink,
     lineHeight: 30,
     marginBottom: 10,
+  },
+  minPurchaseNotice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: BRAND.rose,
+    marginBottom: 12,
   },
   productDescription: {
     fontSize: 15,

@@ -18,6 +18,7 @@ import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { UpdateRequiredModal } from '@/components/UpdateRequiredModal';
 import { UpdateAvailableBanner } from '@/components/UpdateAvailableBanner';
 import { ga4 } from '@/lib/analytics'; // [ANALYTICS-GA4]
+import { syncPushTokenIfGranted } from '@/lib/pushToken'; // [PUSH-CONSENT]
 
 export {
   ErrorBoundary,
@@ -181,6 +182,7 @@ function RootLayoutNav() {
       if (session?.user) {
         fetchNotifications(session.user.id);
         subscribeToRealtime(session.user.id);
+        void syncPushTokenIfGranted(session.user.id); // [PUSH-CONSENT]
       }
     });
 
@@ -189,6 +191,7 @@ function RootLayoutNav() {
       if (session?.user) {
         fetchNotifications(session.user.id);
         subscribeToRealtime(session.user.id);
+        if (_event === 'SIGNED_IN') void syncPushTokenIfGranted(session.user.id); // [PUSH-CONSENT]
       } else {
         clearLocalState(); // Desconecta sockets y vacía el array al cerrar sesión
       }

@@ -56,6 +56,8 @@ import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import { useCartStore } from '@/store/useCartStore';
+import { PushPromoConsentCard } from '@/components/PushPromoConsentCard'; // [PUSH-CONSENT]
+import { clearPushToken } from '@/lib/pushToken'; // [PUSH-CONSENT]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MARCA — Tokens visuales de LaTortaria
@@ -858,7 +860,15 @@ export default function ProfileScreen() {
   const handleSignOut = () => {
     Alert.alert('Cerrar sesión', '¿Estás segura de que deseas salir?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Cerrar sesión', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      {
+        text: 'Cerrar sesión',
+        style: 'destructive',
+        onPress: async () => {
+          // [PUSH-CONSENT] Desvincula el token de este teléfono ANTES de cerrar sesión
+          await clearPushToken(user?.id);
+          await supabase.auth.signOut();
+        },
+      },
     ]);
   };
 
@@ -1598,6 +1608,9 @@ export default function ProfileScreen() {
                   <Feather name="edit-2" size={15} color={BRAND.rose} />
                   <Text style={s.editButtonText}>Editar información</Text>
                 </TouchableOpacity>
+
+                {/* [PUSH-CONSENT] Autorización de ofertas por notificaciones */}
+                <PushPromoConsentCard />
 
                 {/* ── Divisor fino ──────────────────────────────────────────── */}
                 <View style={s.deleteAccountDivider} />

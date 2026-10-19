@@ -23,12 +23,38 @@ import { supabase } from '../../lib/supabase';
 import { getOrCreateGuestWheelId } from '../../lib/wheelIdentity';
 import { ALEGRA_IDENTIFICATION_TYPES, calculateNITVerificationDigit } from '../../lib/alegra/tax-utils';
 import { usePushPermissionRequest } from '../../hooks/usePushPermissionRequest'; // [PUSH v1]
-import { PushPermissionModal } from '../../components/PushPermissionModal'; // [PUSH v1]
+import { PostPurchaseNotifyModal, type NotifyMarketing } from '../../components/PostPurchaseNotifyModal'; // [PUSH-CONSENT]
 import { ga4, type Ga4ItemInput } from '../../lib/analytics'; // [ANALYTICS-GA4]
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://www.latortaria.com';
+
+// [PUSH-CONSENT] Modal posterior al pago: pide el permiso de avisos de pedido y, si falta, la autorización
+// comercial (casilla desmarcada). Máximo una vez cada 30 días; nunca se ofrece a quien ya la retiró.
+const NOTIFY_PROMPT_KEY = 'lt_marketing_prompt_at';
+const NOTIFY_PROMPT_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function getMarketingOffer(): Promise<NotifyMarketing> {
+  try {
+    const last = await SecureStore.getItemAsync(NOTIFY_PROMPT_KEY);
+    if (last && Date.now() - Number(last) < NOTIFY_PROMPT_COOLDOWN_MS) return 'none';
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return 'none';
+    const headers = { Authorization: `Bearer ${session.access_token}` };
+    const [emailRes, pushRes] = await Promise.all([
+      fetch(`${API_BASE}/api/consent/email-status`, { headers }),
+      fetch(`${API_BASE}/api/consent/push`, { headers }),
+    ]);
+    if (!pushRes.ok || !emailRes.ok) return 'none'; // ante cualquier duda, no ofrecer
+    const push = await pushRes.json();
+    const email = await emailRes.json();
+    if (push?.status !== 'no_consent') return 'none'; // ya autorizó o ya retiró: no insistir
+    return email?.subscribed === true ? 'push' : 'email_push';
+  } catch {
+    return 'none';
+  }
+}
 
 // [CONSENT v1] Texto canónico (idéntico a CONSENT_CHECKBOX_COPY en latortaria-ecommerce/lib/consent/constants.ts)
 const MARKETING_CONSENT_LABEL =
@@ -259,7 +285,7 @@ export default function CartScreen() {
   const [isRevalidatingCoupon, setIsRevalidatingCoupon] = useState(false);
   const lastValidatedSubtotalRef = useRef<number | null>(null);
 
-  const [showPushModal, setShowPushModal] = useState(false); // [PUSH v1]
+  const [notifyPrompt, setNotifyPrompt] = useState<{ needOs: boolean; marketing: NotifyMarketing } | null>(null); // [PUSH-CONSENT]
   const { checkPushEligibility, requestPushPermission } = usePushPermissionRequest(); // [PUSH v1]
 
   const subtotal = getTotalPrice();
@@ -415,18 +441,20 @@ export default function CartScreen() {
           await SecureStore.deleteItemAsync('pending_order_id');
           clearCart();
 
-          const eligible = await checkPushEligibility(); // [PUSH v1]
+          const needOs = await checkPushEligibility(); // [PUSH v1]
 
           Alert.alert(
             '¡Pedido confirmado! 🎉',
             'Tu pago fue aprobado. La cocina ya está preparando tu orden.',
             [{
               text: '¡Perfecto!',
-              onPress: () => {
-                if (eligible) {
-                  setShowPushModal(true); // [PUSH v1]
+              onPress: async () => {
+                // [PUSH-CONSENT] ¿Hay algo que pedir? (permiso del sistema y/o autorización comercial)
+                const marketing = await getMarketingOffer();
+                if (needOs || marketing !== 'none') {
+                  setNotifyPrompt({ needOs, marketing });
                 } else {
-                  router.replace('/'); // [PUSH v1]
+                  router.replace('/');
                 }
               }
             }]
@@ -796,18 +824,38 @@ export default function CartScreen() {
           Por favor no cierres la aplicación.
         </Text>
 
-        <PushPermissionModal
-          visible={showPushModal}
-          onAccept={async () => {
-            await requestPushPermission(); // [PUSH v1]
-            await SecureStore.setItemAsync('lt_push_permission_asked', 'true'); // [PUSH v1]
-            setShowPushModal(false); // [PUSH v1]
-            router.replace('/'); // [PUSH v1]
+        <PostPurchaseNotifyModal
+          visible={notifyPrompt !== null}
+          needOs={notifyPrompt?.needOs ?? false}
+          marketing={notifyPrompt?.marketing ?? 'none'}
+          onAccept={async (wantsOffers) => {
+            const prompt = notifyPrompt;
+            if (prompt?.needOs) {
+              await requestPushPermission(); // [PUSH v1]
+              await SecureStore.setItemAsync('lt_push_permission_asked', 'true'); // [PUSH v1]
+            }
+            if (wantsOffers && prompt && prompt.marketing !== 'none') {
+              // [PUSH-CONSENT] Evidencia en el servidor; si falla, no se bloquea: queda el interruptor del perfil
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                  await fetch(`${API_BASE}/api/consent/marketing`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope: prompt.marketing }),
+                  });
+                }
+              } catch { /* sin efecto */ }
+            }
+            await SecureStore.setItemAsync(NOTIFY_PROMPT_KEY, String(Date.now())).catch(() => {});
+            setNotifyPrompt(null);
+            router.replace('/');
           }}
           onDecline={async () => {
-            await SecureStore.setItemAsync('lt_push_permission_asked', 'true'); // [PUSH v1]
-            setShowPushModal(false); // [PUSH v1]
-            router.replace('/'); // [PUSH v1]
+            if (notifyPrompt?.needOs) await SecureStore.setItemAsync('lt_push_permission_asked', 'true'); // [PUSH v1]
+            await SecureStore.setItemAsync(NOTIFY_PROMPT_KEY, String(Date.now())).catch(() => {});
+            setNotifyPrompt(null);
+            router.replace('/');
           }}
         />
       </View>

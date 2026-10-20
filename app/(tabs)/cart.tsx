@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
+  Switch,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -273,6 +274,13 @@ export default function CartScreen() {
   const [neighborhood, setNeighborhood] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliverySlot, setDeliverySlot] = useState('');
+
+  // Estados para opción de regalo
+  const [isGift, setIsGift] = useState(false);
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [giftMessage, setGiftMessage] = useState('');
+
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [marketingOptin, setMarketingOptin] = useState(false); // [CONSENT v1] opcional, desmarcado por defecto
   // [CONSENT v1] Estado de consentimiento ya existente: la casilla solo se muestra si NO está suscrito
@@ -450,6 +458,10 @@ export default function CartScreen() {
 
           await SecureStore.deleteItemAsync('pending_order_id');
           clearCart();
+          setIsGift(false);
+          setRecipientName('');
+          setRecipientPhone('');
+          setGiftMessage('');
 
           const needOs = await checkPushEligibility(); // [PUSH v1]
 
@@ -533,6 +545,18 @@ export default function CartScreen() {
     if (!deliveryDate.trim()) { Alert.alert('Campo requerido', 'Selecciona una fecha de entrega.'); return false; }
     if (!deliverySlot.trim()) { Alert.alert('Campo requerido', 'Selecciona una franja horaria de entrega.'); return false; }
     if (!termsAccepted) { Alert.alert('Términos y condiciones', 'Debes aceptar los términos y condiciones para continuar con tu pedido.'); return false; }
+    if (isGift && recipientPhone.trim()) {
+      let cleanPhone = recipientPhone.replace(/[\s\-()]/g, '');
+      if (cleanPhone.startsWith('+57')) {
+        cleanPhone = cleanPhone.slice(3);
+      } else if (cleanPhone.startsWith('57') && cleanPhone.length === 12) {
+        cleanPhone = cleanPhone.slice(2);
+      }
+      if (!/^3\d{9}$/.test(cleanPhone)) {
+        Alert.alert('Teléfono inválido', 'El teléfono de quien recibe debe tener 10 dígitos.');
+        return false;
+      }
+    }
     if (wantsInvoice && !documentNumber.trim()) {
       Alert.alert('Datos Incompletos', 'Ingresaste que deseas factura electrónica. Por favor indica el número de documento / NIT.');
       return false;
@@ -620,6 +644,23 @@ export default function CartScreen() {
         instructions: item.customization?.instructions ?? null,
       }));
 
+      let normalizedRecipientPhone = recipientPhone.replace(/[\s\-()]/g, '');
+      if (normalizedRecipientPhone.startsWith('+57')) {
+        normalizedRecipientPhone = normalizedRecipientPhone.slice(3);
+      } else if (normalizedRecipientPhone.startsWith('57') && normalizedRecipientPhone.length === 12) {
+        normalizedRecipientPhone = normalizedRecipientPhone.slice(2);
+      }
+      normalizedRecipientPhone = normalizedRecipientPhone.trim();
+
+      const giftPayload = isGift
+        ? {
+            is_gift: true as const,
+            ...(recipientName.trim() ? { recipient_name: recipientName.trim() } : {}),
+            ...(normalizedRecipientPhone ? { recipient_phone: normalizedRecipientPhone } : {}),
+            ...(giftMessage.trim() ? { gift_message: giftMessage.trim() } : {}),
+          }
+        : undefined;
+
       const response = await fetch(`${API_BASE}/api/checkout/initiate`, {
         method: 'POST',
         headers: {
@@ -628,6 +669,7 @@ export default function CartScreen() {
         },
         body: JSON.stringify({
           cart: orderItems,
+          ...(giftPayload ? { gift: giftPayload } : {}),
           shipping_address: {
             full_name: fullName.trim(),
             phone: phone.trim(),
@@ -1150,6 +1192,81 @@ export default function CartScreen() {
           />
         </View>
 
+        {/* Opción de Regalo */}
+        <View style={styles.giftSwitchRow}>
+          <View style={{ flex: 1, paddingRight: 10 }}>
+            <Text style={styles.giftSwitchLabel}>
+              Es un regalo, lo recibe otra persona{' '}
+              <Text style={styles.giftOptionalTag}>(Opcional)</Text>
+            </Text>
+          </View>
+          <Switch
+            value={isGift}
+            onValueChange={(val) => {
+              setIsGift(val);
+              if (!val) {
+                setRecipientName('');
+                setRecipientPhone('');
+                setGiftMessage('');
+              }
+            }}
+            trackColor={{ false: BRAND.border, true: BRAND.orange }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+
+        {isGift && (
+          <View style={styles.giftSection}>
+            <Text style={styles.giftNotice}>
+              Usaremos estos datos solo para entregar tu pedido.
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Nombre de quien recibe</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: María Pérez"
+                placeholderTextColor={BRAND.textSecondary}
+                value={recipientName}
+                onChangeText={setRecipientName}
+                maxLength={80}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Teléfono de quien recibe</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 300 123 4567"
+                placeholderTextColor={BRAND.textSecondary}
+                value={recipientPhone}
+                onChangeText={setRecipientPhone}
+                keyboardType="phone-pad"
+                maxLength={14}
+              />
+              <Text style={styles.inputHelp}>Lo usamos solo para coordinar la entrega.</Text>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <View style={styles.giftMessageHeaderRow}>
+                <Text style={styles.inputLabel}>Mensaje para la tarjeta</Text>
+                <Text style={styles.charCount}>{giftMessage.length}/200</Text>
+              </View>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Escribe tu mensaje aquí..."
+                placeholderTextColor={BRAND.textSecondary}
+                value={giftMessage}
+                onChangeText={setGiftMessage}
+                multiline
+                numberOfLines={3}
+                maxLength={200}
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+        )}
+
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Fecha de Entrega *</Text>
           <ScrollView
@@ -1494,4 +1611,57 @@ const styles = StyleSheet.create({
   verifyingContainer: { flex: 1, backgroundColor: BRAND.background, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },
   verifyingTitle: { fontSize: 20, fontWeight: '800', color: BRAND.textPrimary, marginTop: 8 },
   verifyingSubtitle: { fontSize: 14, color: BRAND.textSecondary, textAlign: 'center', lineHeight: 22 },
-});
+
+  // Opción de Regalo
+  giftSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: BRAND.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    padding: 14,
+    marginTop: 4,
+  },
+  giftSwitchLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND.textPrimary,
+    lineHeight: 18,
+  },
+  giftOptionalTag: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: BRAND.textSecondary,
+  },
+  giftSection: {
+    backgroundColor: BRAND.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    padding: 14,
+    marginTop: 4,
+    gap: 12,
+  },
+  giftNotice: {
+    fontSize: 12,
+    color: BRAND.textMuted,
+    lineHeight: 18,
+  },
+  inputHelp: {
+    fontSize: 11,
+    color: BRAND.textSecondary,
+    marginTop: 2,
+  },
+  giftMessageHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  charCount: {
+    fontSize: 11,
+    color: BRAND.textSecondary,
+  },
+});
+

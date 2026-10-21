@@ -74,6 +74,39 @@ export default function RootLayout() {
   return <RootLayoutNav />;
 }
 
+// Valida y traduce el destino que viene en la notificación. Solo rutas internas conocidas.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CATEGORY_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function resolveNotificationUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const url = raw.trim();
+  if (url.length === 0 || url.length > 200) return null;
+
+  switch (url) {
+    case '/':
+      return '/(tabs)';
+    case '/explore':
+      return '/(tabs)/explore';
+    case '/cart':
+      return '/(tabs)/cart';
+    case '/favorites':
+      return '/(tabs)/favorites';
+    case '/search':
+      return '/search';
+  }
+
+  const product = /^\/product\/([^/?#]+)$/.exec(url);
+  if (product && product[1] && UUID_RE.test(product[1])) return `/product/${product[1]}`;
+
+  const category = /^\/explore\?categorySlug=([^&#]+)$/.exec(url);
+  if (category && category[1] && category[1].length <= 80 && CATEGORY_SLUG_RE.test(category[1])) {
+    return `/(tabs)/explore?categorySlug=${category[1]}`;
+  }
+
+  return null; // cualquier otra cosa se ignora
+}
+
 // ─── OBSERVADOR DE NOTIFICACIONES — navegación al presionar una alerta ───────
 // Separado en su propio hook para no mezclar la lógica de deep links de auth/
 // pago (arriba) con la de push notifications (independiente en su origen:
@@ -85,8 +118,8 @@ function useNotificationObserver() {
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
   const handleRedirect = (notification: Notifications.Notification) => {
-    const url = notification.request.content.data?.url;
-    if (typeof url === 'string' && url.trim() !== '') {
+    const url = resolveNotificationUrl(notification.request.content.data?.url);
+    if (url) {
       if (isNavigationReady) {
         router.push(url as any);
       } else {

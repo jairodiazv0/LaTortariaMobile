@@ -35,7 +35,6 @@ import {
   TouchableOpacity,
   ScrollView,
   FlatList,
-  Image,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -46,6 +45,7 @@ import {
   Dimensions,
   Share,
 } from 'react-native';
+import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1498,7 +1498,7 @@ export default function ProfileScreen() {
                         {order.order_items.map((item) => (
                           <View key={item.id} style={s.accordionItem}>
                             {item.image_snapshot ? (
-                              <Image source={{ uri: item.image_snapshot }} style={s.itemImage} resizeMode="cover" />
+                              <Image source={{ uri: item.image_snapshot }} style={s.itemImage} contentFit="cover" cachePolicy="memory-disk" />
                             ) : (
                               <View style={[s.itemImage, s.itemImagePlaceholder]}>
                                 <Feather name="image" size={14} color={BRAND.inkLight} />
@@ -1563,7 +1563,7 @@ export default function ProfileScreen() {
                 {favorites.map((fav) => (
                   <View key={fav.id} style={s.favCard}>
                     {fav.coverUrl ? (
-                      <Image source={{ uri: fav.coverUrl }} style={s.favImage} resizeMode="cover" />
+                      <Image source={{ uri: fav.coverUrl }} style={s.favImage} contentFit="cover" cachePolicy="memory-disk" />
                     ) : (
                       <View style={[s.favImage, s.favImagePlaceholder]}>
                         <Text style={{ fontSize: 28 }}>🎂</Text>

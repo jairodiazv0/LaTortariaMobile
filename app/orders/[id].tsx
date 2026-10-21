@@ -16,8 +16,8 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -304,7 +304,7 @@ export default function OrderDetailScreen() {
           {items.map((it) => (
             <View key={it.id} style={s.itemRow}>
               {it.image_snapshot ? (
-                <Image source={{ uri: it.image_snapshot }} style={s.itemImage} />
+                <Image source={{ uri: it.image_snapshot }} style={s.itemImage} contentFit="cover" cachePolicy="memory-disk" />
               ) : (
                 <View style={[s.itemImage, s.itemImagePlaceholder]}>
                   <Ionicons name="fast-food-outline" size={20} color={BRAND.textSecondary} />

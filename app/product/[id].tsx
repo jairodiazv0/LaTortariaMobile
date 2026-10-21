@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getOrCreateGuestWheelId } from '../../lib/wheelIdentity';
@@ -485,7 +485,8 @@ export default function ProductDetailScreen() {
                   key={img.id}
                   source={{ uri: img.url }}
                   style={styles.galleryImage}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ))}
             </ScrollView>
@@ -553,7 +554,7 @@ export default function ProductDetailScreen() {
                     backgroundColor: '#FFFFFF'
                   }}
                 >
-                  <Image source={{ uri: img.url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  <Image source={{ uri: img.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" cachePolicy="memory-disk" />
                 </TouchableOpacity>
               );
             })}
@@ -697,7 +698,8 @@ export default function ProductDetailScreen() {
                         <Image
                           source={{ uri: item.imageUrl }}
                           style={styles.relatedImage}
-                          resizeMode="cover"
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
                         />
                       ) : (
                         <View style={styles.relatedFallback}>

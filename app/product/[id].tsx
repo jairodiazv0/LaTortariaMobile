@@ -458,6 +458,7 @@ export default function ProductDetailScreen() {
         options={{
           title: product.name,
           headerShown: true,
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: '#FAF7F2' },
           headerTintColor: '#2C2018',
           headerTitleStyle: { fontWeight: '700', fontSize: 16 }

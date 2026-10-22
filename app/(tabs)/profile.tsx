@@ -28,6 +28,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TurnstileWidget } from '@/components/TurnstileWidget';
+import { canDownloadReceipt, openOrderReceipt } from '@/lib/receipts';
 import {
   View,
   Text,
@@ -273,6 +274,7 @@ export default function ProfileScreen() {
   // ── Panel navigation ───────────────────────────────────────────────────────
   const [activeSection, setActiveSection] = useState<ActiveSection>('orders');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [receiptLoadingId, setReceiptLoadingId] = useState<string | null>(null);
 
   // ── Edit profile ───────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -1000,6 +1002,27 @@ export default function ProfileScreen() {
     router.push('/(tabs)/cart');
   };
 
+  const handleDownloadReceipt = async (orderId: string) => {
+    if (receiptLoadingId) return;
+    setReceiptLoadingId(orderId);
+    try {
+      const res = await openOrderReceipt(orderId);
+      if (!res.ok) {
+        if (res.reason === 'auth') {
+          Alert.alert('Sesión requerida', 'Inicia sesión de nuevo para descargar tu recibo');
+        } else if (res.reason === 'not_available') {
+          Alert.alert('Recibo no disponible', 'El recibo estará disponible cuando se confirme el pago');
+        } else if (res.reason === 'network') {
+          Alert.alert('Error de conexión', 'Revisa tu conexión e inténtalo de nuevo');
+        } else {
+          Alert.alert('Error', 'No pudimos generar el recibo. Inténtalo más tarde');
+        }
+      }
+    } finally {
+      setReceiptLoadingId(null);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER — Carga inicial
   // ─────────────────────────────────────────────────────────────────────────
@@ -1540,6 +1563,29 @@ export default function ProfileScreen() {
                             </TouchableOpacity>
                           </View>
                         )}
+
+                        {/* ── Recibo de pago ──────────────────────────────── */}
+                        {canDownloadReceipt(order.status) && (
+                          <View style={s.orderReceiptRow}>
+                            <TouchableOpacity
+                              style={[s.orderActionReceipt, receiptLoadingId === order.id && { opacity: 0.6 }]}
+                              onPress={() => handleDownloadReceipt(order.id)}
+                              disabled={receiptLoadingId === order.id}
+                              activeOpacity={0.75}
+                            >
+                              <Feather name="file-text" size={14} color={BRAND.ink} />
+                              <Text style={s.orderActionReceiptText}>
+                                {receiptLoadingId === order.id ? 'Generando recibo…' : 'Descargar recibo'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {order.status === 'pending_payment' && (
+                          <Text style={s.orderPendingReceiptText}>
+                            El recibo estará disponible cuando se confirme el pago
+                          </Text>
+                        )}
                       </View>
                     )}
                   </TouchableOpacity>
@@ -1858,6 +1904,38 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: BRAND.white,
+  },
+  orderReceiptRow: {
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: BRAND.divider,
+    marginTop: 8,
+  },
+  orderActionReceipt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: BRAND.radius,
+    borderWidth: 1.5,
+    borderColor: BRAND.divider,
+    backgroundColor: BRAND.white,
+  },
+  orderActionReceiptText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 13,
+    fontWeight: '600',
+    color: BRAND.ink,
+  },
+  orderPendingReceiptText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 11,
+    color: BRAND.inkLight,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingTop: 8,
   },
 
   // Favoritos

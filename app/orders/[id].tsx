@@ -16,12 +16,14 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
+import { canDownloadReceipt, openOrderReceipt } from '@/lib/receipts';
 
 const BRAND = {
   cream: '#FAF7F2',
@@ -101,6 +103,7 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [items, setItems] = useState<OrderItemRow[]>([]);
   const [history, setHistory] = useState<StatusHistoryRow[]>([]);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!id) return;
@@ -184,6 +187,27 @@ export default function OrderDetailScreen() {
   }, [id, loadOrder]);
 
   const subtotal = items.reduce((acc, it) => acc + it.price_at_purchase * it.quantity, 0);
+
+  const handleDownloadReceipt = async () => {
+    if (!order || receiptLoading) return;
+    setReceiptLoading(true);
+    try {
+      const res = await openOrderReceipt(order.id);
+      if (!res.ok) {
+        if (res.reason === 'auth') {
+          Alert.alert('Sesión requerida', 'Inicia sesión de nuevo para descargar tu recibo');
+        } else if (res.reason === 'not_available') {
+          Alert.alert('Recibo no disponible', 'El recibo estará disponible cuando se confirme el pago');
+        } else if (res.reason === 'network') {
+          Alert.alert('Error de conexión', 'Revisa tu conexión e inténtalo de nuevo');
+        } else {
+          Alert.alert('Error', 'No pudimos generar el recibo. Inténtalo más tarde');
+        }
+      }
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -344,6 +368,27 @@ export default function OrderDetailScreen() {
             <Text style={s.totalValue}>{formatCOP(order.total_amount)}</Text>
           </View>
         </View>
+
+        {/* ─── Recibo de pago ─── */}
+        {canDownloadReceipt(order.status) && (
+          <TouchableOpacity
+            style={[s.receiptBtn, receiptLoading && { opacity: 0.6 }]}
+            onPress={handleDownloadReceipt}
+            disabled={receiptLoading}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="document-text-outline" size={18} color={BRAND.ink} />
+            <Text style={s.receiptBtnText}>
+              {receiptLoading ? 'Generando recibo…' : 'Descargar recibo'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {order.status === 'pending_payment' && (
+          <Text style={s.pendingReceiptText}>
+            El recibo estará disponible cuando se confirme el pago
+          </Text>
+        )}
       </ScrollView>
     </View>
     </>
@@ -436,4 +481,29 @@ const s = StyleSheet.create({
   divider: { height: 1, backgroundColor: BRAND.border, marginVertical: 8 },
   totalLabel: { fontSize: 15, fontWeight: '800', color: BRAND.ink },
   totalValue: { fontSize: 16, fontWeight: '800', color: BRAND.rose },
+  receiptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: BRAND.border,
+    backgroundColor: BRAND.white,
+  },
+  receiptBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: BRAND.ink,
+  },
+  pendingReceiptText: {
+    fontSize: 12,
+    color: BRAND.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 12,
+  },
 });

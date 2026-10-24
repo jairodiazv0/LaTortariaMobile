@@ -11,13 +11,20 @@ import {
   Platform,
   KeyboardAvoidingView,
   Switch,
+  Modal,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import {
+  UserCoupon,
+  fetchMyCoupons,
+  formatCouponBenefit,
+  formatCouponExpiry,
+} from '@/lib/coupons';
 
 import { CartItem, useCartStore } from '../../store/useCartStore';
 import { supabase } from '../../lib/supabase';
@@ -294,6 +301,8 @@ export default function CartScreen() {
   const [saveTaxInfo, setSaveTaxInfo] = useState(false);
 
   // Cupones
+  const { coupon: urlCoupon } = useLocalSearchParams<{ coupon?: string }>();
+  const urlCouponAppliedRef = useRef(false);
   const [couponCode, setCouponCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [appliedCouponId, setAppliedCouponId] = useState<string | null>(null);
@@ -302,6 +311,31 @@ export default function CartScreen() {
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [isRevalidatingCoupon, setIsRevalidatingCoupon] = useState(false);
   const lastValidatedSubtotalRef = useRef<number | null>(null);
+
+  // Cupones del usuario para el chip
+  const [userCoupons, setUserCoupons] = useState<UserCoupon[]>([]);
+  const [couponsModalVisible, setCouponsModalVisible] = useState(false);
+
+  const loadUserCoupons = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUserCoupons([]);
+        return;
+      }
+      const { data } = await fetchMyCoupons();
+      const usable = data.filter((c) => c.status === 'vigente' || c.status === 'por_vencer');
+      setUserCoupons(usable);
+    } catch {
+      setUserCoupons([]);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUserCoupons();
+    }, [loadUserCoupons])
+  );
 
   const [notifyPrompt, setNotifyPrompt] = useState<{ needOs: boolean; marketing: NotifyMarketing } | null>(null); // [PUSH-CONSENT]
   const { checkPushEligibility, requestPushPermission } = usePushPermissionRequest(); // [PUSH v1]
@@ -847,8 +881,9 @@ export default function CartScreen() {
   }, [subtotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Validar cupón contra el backend ───────────────────────────────────────
-  const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return;
+  const handleApplyCoupon = async (codeOverride?: string) => {
+    const rawCode = (codeOverride ?? couponCode).trim();
+    if (!rawCode) return;
     setCouponError(null);
     setIsValidatingCoupon(true);
     try {
@@ -861,15 +896,15 @@ export default function CartScreen() {
         await supabase.rpc('claim_wheel_coupon', { p_guest_device_id: guestId });
       }
 
-      const result = await callValidateCoupon(couponCode.trim(), subtotal);
-      ga4.couponResult(couponCode, result.ok); // [ANALYTICS-GA4]
+      const result = await callValidateCoupon(rawCode, subtotal);
+      ga4.couponResult(rawCode, result.ok); // [ANALYTICS-GA4]
       if (!result.ok) {
         setCouponError(result.error);
         setAppliedDiscount(0); setAppliedCouponId(null); setAppliedCouponCode(null);
       } else {
         setAppliedDiscount(result.discountAmount);
         setAppliedCouponId(result.couponId);
-        setAppliedCouponCode(couponCode.toUpperCase().trim());
+        setAppliedCouponCode(rawCode.toUpperCase().trim());
         lastValidatedSubtotalRef.current = subtotal;
         setCouponCode('');
       }
@@ -879,6 +914,20 @@ export default function CartScreen() {
       setIsValidatingCoupon(false);
     }
   };
+
+  // 🎟️ Auto-aplicar cupón recibido por parámetro URL una sola vez cuando subtotal esté listo
+  useEffect(() => {
+    if (!urlCoupon) {
+      urlCouponAppliedRef.current = false;
+      return;
+    }
+    if (urlCouponAppliedRef.current || subtotal <= 0) return;
+    urlCouponAppliedRef.current = true;
+    const clean = urlCoupon.trim().toUpperCase();
+    setCouponCode(clean);
+    handleApplyCoupon(clean);
+    router.setParams({ coupon: '' });
+  }, [urlCoupon, subtotal]);
 
   const removeCoupon = () => {
     setAppliedDiscount(0); setAppliedCouponId(null); setAppliedCouponCode(null); setCouponError(null);
@@ -1008,6 +1057,23 @@ export default function CartScreen() {
           {/* Cupón */}
           <View style={styles.couponSection}>
             <Text style={styles.couponTitle}>🎟️ ¿Tienes un cupón?</Text>
+
+            {userCoupons.length > 0 && !appliedCouponCode && (
+              <TouchableOpacity
+                style={styles.availableCouponsChip}
+                onPress={() => setCouponsModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.availableCouponsChipLeft}>
+                  <Feather name="tag" size={13} color={BRAND.primary} />
+                  <Text style={styles.availableCouponsChipText}>
+                    {`Tienes ${userCoupons.length} ${userCoupons.length === 1 ? 'cupón disponible' : 'cupones disponibles'}`}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={14} color={BRAND.primary} />
+              </TouchableOpacity>
+            )}
+
             {appliedCouponCode ? (
               <View style={styles.couponAppliedContainer}>
                 <View>
@@ -1032,7 +1098,7 @@ export default function CartScreen() {
                 />
                 <TouchableOpacity
                   style={[styles.couponButton, (!couponCode.trim() || isValidatingCoupon) && styles.couponBtnDisabled]}
-                  onPress={handleApplyCoupon}
+                  onPress={() => handleApplyCoupon()}
                   disabled={isValidatingCoupon || !couponCode.trim()}>
                   {isValidatingCoupon
                     ? <ActivityIndicator size="small" color="#FFF" />
@@ -1479,6 +1545,90 @@ export default function CartScreen() {
           <Feather name="credit-card" size={18} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+
+      {/* ── Modal de Cupones Disponibles (Hoja Inferior) ── */}
+      <Modal
+        visible={couponsModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCouponsModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.couponsModalBackdrop}
+          activeOpacity={1}
+          onPress={() => setCouponsModalVisible(false)}
+        >
+          <View style={styles.couponsModalSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.couponsModalHeader}>
+              <View>
+                <Text style={styles.couponsModalTitle}>Mis Cupones</Text>
+                <Text style={styles.couponsModalSubtitle}>Selecciona un cupón para aplicarlo a tu orden</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.couponsModalClose}
+                onPress={() => setCouponsModalVisible(false)}
+              >
+                <Feather name="x" size={20} color={BRAND.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.couponsModalScroll} showsVerticalScrollIndicator={false}>
+              {userCoupons.map((c) => {
+                const minOrder = c.min_order_amount ?? 0;
+                const canUse = subtotal >= minOrder;
+                const missing = minOrder - subtotal;
+                const { dateText } = formatCouponExpiry(c);
+
+                return (
+                  <TouchableOpacity
+                    key={c.coupon_id}
+                    disabled={!canUse || isValidatingCoupon}
+                    onPress={() => {
+                      setCouponsModalVisible(false);
+                      setCouponCode(c.code);
+                      handleApplyCoupon(c.code);
+                    }}
+                    style={[
+                      styles.couponSheetCard,
+                      !canUse && styles.couponSheetCardDisabled,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.couponSheetCardTop}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.couponSheetCardName}>{c.name}</Text>
+                        <Text style={styles.couponSheetCardBenefit}>
+                          {formatCouponBenefit(c)}
+                        </Text>
+                      </View>
+                      <View style={styles.couponSheetCodePill}>
+                        <Text style={styles.couponSheetCodeText}>{c.code}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.couponSheetExpiry}>{dateText}</Text>
+
+                    {minOrder > 0 && (
+                      <Text style={[styles.couponSheetMinOrder, !canUse && styles.couponSheetMinOrderWarning]}>
+                        {canUse
+                          ? `Compra mínima $${minOrder.toLocaleString('es-CO')}`
+                          : `Te faltan $${missing.toLocaleString('es-CO')} para usarlo (Mín. $${minOrder.toLocaleString('es-CO')})`}
+                      </Text>
+                    )}
+
+                    {canUse && (
+                      <View style={styles.couponSheetApplyRow}>
+                        <Text style={styles.couponSheetApplyText}>Toca para aplicar</Text>
+                        <Feather name="arrow-right" size={13} color={BRAND.primary} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -1662,6 +1812,142 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: 11,
     color: BRAND.textSecondary,
+  },
+
+  // Chip de cupones disponibles
+  availableCouponsChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FBF0EC',
+    borderWidth: 1,
+    borderColor: '#F5D5C8',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  availableCouponsChipLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  availableCouponsChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: BRAND.primary,
+  },
+
+  // Modal de cupones (hoja inferior)
+  couponsModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  couponsModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '75%',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 34,
+  },
+  couponsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: BRAND.border,
+  },
+  couponsModalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: BRAND.textPrimary,
+  },
+  couponsModalSubtitle: {
+    fontSize: 12,
+    color: BRAND.textSecondary,
+    marginTop: 2,
+  },
+  couponsModalClose: {
+    padding: 6,
+  },
+  couponsModalScroll: {
+    marginTop: 14,
+  },
+  couponSheetCard: {
+    backgroundColor: '#FAF7F2',
+    borderWidth: 1,
+    borderColor: '#E8DED1',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  couponSheetCardDisabled: {
+    opacity: 0.55,
+    backgroundColor: '#F3EFEA',
+    borderColor: '#E0D8CE',
+  },
+  couponSheetCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  couponSheetCardName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND.textPrimary,
+  },
+  couponSheetCardBenefit: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BRAND.primary,
+    marginTop: 2,
+  },
+  couponSheetCodePill: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: BRAND.primary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  couponSheetCodeText: {
+    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }) as string,
+    fontSize: 11,
+    fontWeight: '800',
+    color: BRAND.textPrimary,
+    letterSpacing: 1,
+  },
+  couponSheetExpiry: {
+    fontSize: 11,
+    color: BRAND.textSecondary,
+    marginTop: 6,
+  },
+  couponSheetMinOrder: {
+    fontSize: 11,
+    color: BRAND.textSecondary,
+    marginTop: 4,
+  },
+  couponSheetMinOrderWarning: {
+    color: BRAND.red,
+    fontWeight: '600',
+  },
+  couponSheetApplyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    alignSelf: 'flex-end',
+  },
+  couponSheetApplyText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: BRAND.primary,
   },
 });
 

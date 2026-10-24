@@ -59,6 +59,15 @@ import type { User } from '@supabase/supabase-js';
 import { useCartStore } from '@/store/useCartStore';
 import { PushPromoConsentCard } from '@/components/PushPromoConsentCard'; // [PUSH-CONSENT]
 import { clearPushToken } from '@/lib/pushToken'; // [PUSH-CONSENT]
+import {
+  UserCoupon,
+  CouponStatus,
+  fetchMyCoupons,
+  saveCouponByCode,
+  dismissCoupon,
+  formatCouponBenefit,
+  formatCouponExpiry,
+} from '@/lib/coupons';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MARCA — Tokens visuales de LaTortaria
@@ -95,7 +104,7 @@ const BRAND = {
 // TIPOS
 // ─────────────────────────────────────────────────────────────────────────────
 type AuthMode = 'login' | 'register';
-type ActiveSection = 'orders' | 'favorites' | 'profile';
+type ActiveSection = 'orders' | 'favorites' | 'coupons' | 'profile';
 
 interface WelcomeCoupon {
   code: string;
@@ -136,6 +145,48 @@ interface FavoriteProduct {
   rating_avg: number | null;
   coverUrl: string | null;
 }
+
+const COUPON_STATUS_STYLES: Record<
+  CouponStatus,
+  { label: string; bg: string; text: string; border: string }
+> = {
+  vigente: {
+    label: 'Vigente',
+    bg: BRAND.statusPaidBg,
+    text: BRAND.statusPaid,
+    border: '#A5D6A7',
+  },
+  por_vencer: {
+    label: 'Por vencer',
+    bg: BRAND.statusPendingBg,
+    text: BRAND.statusPending,
+    border: '#FAD7A0',
+  },
+  proximo: {
+    label: 'Próximo',
+    bg: '#EBF3F5',
+    text: '#4A6B74',
+    border: '#CFE2E6',
+  },
+  usado: {
+    label: 'Usado',
+    bg: '#F0EDE8',
+    text: '#8C7D70',
+    border: '#DDD6CC',
+  },
+  agotado: {
+    label: 'Agotado',
+    bg: '#F0EDE8',
+    text: '#8C7D70',
+    border: '#DDD6CC',
+  },
+  vencido: {
+    label: 'Vencido',
+    bg: '#F0EDE8',
+    text: '#8C7D70',
+    border: '#DDD6CC',
+  },
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDACIONES — Colombia context
@@ -275,6 +326,78 @@ export default function ProfileScreen() {
   const [activeSection, setActiveSection] = useState<ActiveSection>('orders');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [receiptLoadingId, setReceiptLoadingId] = useState<string | null>(null);
+
+  // ── Cupones del usuario ────────────────────────────────────────────────────
+  const [coupons, setCoupons] = useState<UserCoupon[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [couponsError, setCouponsError] = useState<string | null>(null);
+  const [couponTab, setCouponTab] = useState<'vigentes' | 'historial'>('vigentes');
+  const [inputCouponCode, setInputCouponCode] = useState('');
+  const [savingCoupon, setSavingCoupon] = useState(false);
+  const [copiedCouponCode, setCopiedCouponCode] = useState<string | null>(null);
+  const [dismissingCouponId, setDismissingCouponId] = useState<string | null>(null);
+
+  const loadCoupons = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      setCoupons([]);
+      return;
+    }
+    setCouponsLoading(true);
+    setCouponsError(null);
+    const res = await fetchMyCoupons();
+    if (res.error) {
+      setCouponsError(res.error);
+    } else {
+      setCoupons(res.data);
+    }
+    setCouponsLoading(false);
+  }, []);
+
+  const handleSaveCoupon = async () => {
+    const clean = inputCouponCode.trim().toUpperCase();
+    if (!clean) return;
+    setSavingCoupon(true);
+    const res = await saveCouponByCode(clean);
+    setSavingCoupon(false);
+    if (res.success) {
+      setInputCouponCode('');
+      Alert.alert('¡Cupón guardado!', 'Tu cupón ha sido agregado a tu cuenta.');
+      await loadCoupons();
+    } else {
+      Alert.alert('No se pudo guardar', res.message || 'Inténtalo de nuevo.');
+    }
+  };
+
+  const handleCopyCoupon = async (code: string) => {
+    await Clipboard.setStringAsync(code);
+    setCopiedCouponCode(code);
+    setTimeout(() => setCopiedCouponCode(null), 2000);
+  };
+
+  const handleDismissCoupon = (coupon: UserCoupon) => {
+    Alert.alert(
+      'Eliminar cupón',
+      '¿Quitar este cupón de tu lista?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            setDismissingCouponId(coupon.coupon_id);
+            const res = await dismissCoupon(coupon.coupon_id);
+            setDismissingCouponId(null);
+            if (res.success) {
+              setCoupons((prev) => prev.filter((c) => c.coupon_id !== coupon.coupon_id));
+            } else {
+              Alert.alert('Error', 'No se pudo quitar el cupón. Intenta de nuevo.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // ── Edit profile ───────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -544,6 +667,7 @@ export default function ProfileScreen() {
         setShowWelcomeModal(false);
         setShowCelebration(false);
         isRegisteringRef.current = false;
+        setCoupons([]); setInputCouponCode(''); setCouponsError(null);
       }
       setLoading(false);
     });
@@ -557,8 +681,9 @@ export default function ProfileScreen() {
     useCallback(() => {
       if (user) {
         loadUserData(user.id);
+        loadCoupons();
       }
-    }, [user, loadUserData])
+    }, [user, loadUserData, loadCoupons])
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1109,6 +1234,10 @@ export default function ProfileScreen() {
               {welcomeCoupon ? formatCOP(welcomeCoupon.benefit) : ''} de inmediato.
             </Text>
 
+            <Text style={s.modalSavedNote}>
+              Queda guardado en Cuenta → Mis Cupones
+            </Text>
+
             {/* Botón copiar */}
             <TouchableOpacity
               style={[s.copyButton, copiedCode && s.copyButtonCopied]}
@@ -1132,6 +1261,15 @@ export default function ProfileScreen() {
               activeOpacity={0.8}
             >
               <Text style={s.closeModalText}>Continuar →</Text>
+            </TouchableOpacity>
+
+            {/* Botón secundario guardar para después */}
+            <TouchableOpacity
+              style={s.secondaryModalButton}
+              onPress={handleCloseCelebration}
+              activeOpacity={0.8}
+            >
+              <Text style={s.secondaryModalButtonText}>Guardar para después</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1440,12 +1578,18 @@ export default function ProfileScreen() {
           {profile?.phone ? <Text style={s.accountPhone}>{profile.phone}</Text> : null}
         </View>
 
-        {/* ── Sub-menú de secciones ────────────────────────────────────────── */}
+        {/* ── Sub-menú de secciones en cuadrícula 2x2 ──────────────────── */}
         <View style={s.sectionNav}>
           {(
             [
               { key: 'orders', icon: 'shopping-bag', label: 'Mis Pedidos', count: orders.length },
               { key: 'favorites', icon: 'heart', label: 'Favoritos', count: favorites.length },
+              {
+                key: 'coupons',
+                icon: 'tag',
+                label: 'Mis Cupones',
+                count: coupons.filter(c => c.status === 'vigente' || c.status === 'por_vencer').length,
+              },
               { key: 'profile', icon: 'user', label: 'Mi Perfil', count: null },
             ] as { key: ActiveSection; icon: any; label: string; count: number | null }[]
           ).map(({ key, icon, label, count }) => {
@@ -1454,7 +1598,10 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 key={key}
                 style={[s.navCard, active && s.navCardActive]}
-                onPress={() => setActiveSection(key)}
+                onPress={() => {
+                  setActiveSection(key);
+                  if (key === 'coupons') loadCoupons();
+                }}
                 activeOpacity={0.8}
               >
                 <Feather name={icon} size={18} color={active ? BRAND.white : BRAND.inkMid} />
@@ -1634,6 +1781,239 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* ── SECCIÓN: MIS CUPONES ─────────────────────────────────────────── */}
+        {activeSection === 'coupons' && (
+          <View style={s.section}>
+            {/* Formulario "Tengo un código" */}
+            <View style={s.couponFormCard}>
+              <Text style={s.couponFormTitle}>¿Tienes un código promocional?</Text>
+              <Text style={s.couponFormSubtitle}>
+                Escribe tu código de descuento para guardarlo en tu cuenta.
+              </Text>
+              <View style={s.couponInputRow}>
+                <TextInput
+                  style={s.couponInput}
+                  placeholder="Ej: BIENVENIDA, DULCE10"
+                  placeholderTextColor={BRAND.inkLight}
+                  value={inputCouponCode}
+                  onChangeText={(t) => setInputCouponCode(t.toUpperCase())}
+                  autoCapitalize="characters"
+                  editable={!savingCoupon}
+                />
+                <TouchableOpacity
+                  style={[s.couponSaveBtn, (!inputCouponCode.trim() || savingCoupon) && s.couponSaveBtnDisabled]}
+                  onPress={handleSaveCoupon}
+                  disabled={!inputCouponCode.trim() || savingCoupon}
+                  activeOpacity={0.85}
+                >
+                  {savingCoupon ? (
+                    <ActivityIndicator size="small" color={BRAND.white} />
+                  ) : (
+                    <Text style={s.couponSaveBtnText}>Guardar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Pestañas de Filtro: Vigentes vs Historial */}
+            <View style={s.couponTabsRow}>
+              <TouchableOpacity
+                style={[s.couponTab, couponTab === 'vigentes' && s.couponTabActive]}
+                onPress={() => setCouponTab('vigentes')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.couponTabText, couponTab === 'vigentes' && s.couponTabTextActive]}>
+                  Vigentes
+                </Text>
+                <View style={[s.couponTabBadge, couponTab === 'vigentes' && s.couponTabBadgeActive]}>
+                  <Text style={[s.couponTabBadgeText, couponTab === 'vigentes' && s.couponTabBadgeTextActive]}>
+                    {coupons.filter(c => c.status === 'vigente' || c.status === 'por_vencer' || c.status === 'proximo').length}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.couponTab, couponTab === 'historial' && s.couponTabActive]}
+                onPress={() => setCouponTab('historial')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.couponTabText, couponTab === 'historial' && s.couponTabTextActive]}>
+                  Historial
+                </Text>
+                <View style={[s.couponTabBadge, couponTab === 'historial' && s.couponTabBadgeActive]}>
+                  <Text style={[s.couponTabBadgeText, couponTab === 'historial' && s.couponTabBadgeTextActive]}>
+                    {coupons.filter(c => c.status === 'usado' || c.status === 'agotado' || c.status === 'vencido').length}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Estado de carga */}
+            {couponsLoading && coupons.length === 0 ? (
+              <View style={[s.emptyState, { paddingVertical: 40 }]}>
+                <ActivityIndicator size="small" color={BRAND.rose} />
+                <Text style={[s.emptyBody, { marginTop: 10 }]}>Cargando tus cupones...</Text>
+              </View>
+            ) : couponsError ? (
+              <View style={s.emptyState}>
+                <Feather name="alert-circle" size={36} color={BRAND.statusCancelled} />
+                <Text style={s.emptyTitle}>No pudimos cargar tus cupones</Text>
+                <Text style={s.emptyBody}>{couponsError}</Text>
+                <TouchableOpacity style={[s.editButton, { marginTop: 12 }]} onPress={loadCoupons}>
+                  <Text style={s.editButtonText}>Reintentar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              (() => {
+                const activeList = coupons.filter(
+                  c => c.status === 'vigente' || c.status === 'por_vencer' || c.status === 'proximo'
+                );
+                const historyList = coupons.filter(
+                  c => c.status === 'usado' || c.status === 'agotado' || c.status === 'vencido'
+                );
+                const displayed = couponTab === 'vigentes' ? activeList : historyList;
+
+                if (displayed.length === 0) {
+                  return (
+                    <View style={s.emptyState}>
+                      <Feather name="tag" size={40} color={BRAND.inkLight} />
+                      <Text style={s.emptyTitle}>
+                        {couponTab === 'vigentes' ? 'Sin cupones vigentes' : 'Sin cupones en tu historial'}
+                      </Text>
+                      <Text style={s.emptyBody}>
+                        {couponTab === 'vigentes'
+                          ? 'Cuando recibas o guardes códigos de descuento, aparecerán aquí.'
+                          : 'Aquí verás los cupones que ya utilizaste o que llegaron al fin de su vigencia.'}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return displayed.map((coupon) => {
+                  const isUsable = coupon.status === 'vigente' || coupon.status === 'por_vencer';
+                  const badge = COUPON_STATUS_STYLES[coupon.status] || {
+                    label: coupon.status,
+                    bg: '#F0EDE8',
+                    text: BRAND.inkLight,
+                    border: '#DDD6CC',
+                  };
+                  const { dateText, daysLeftText } = formatCouponExpiry(coupon);
+                  const isCopied = copiedCouponCode === coupon.code;
+                  const isDismissing = dismissingCouponId === coupon.coupon_id;
+                  const minAmount = coupon.min_order_amount ?? 0;
+
+                  return (
+                    <View
+                      key={coupon.coupon_id}
+                      style={[s.couponCard, !isUsable && s.couponCardDisabled]}
+                    >
+                      {/* Cabecera */}
+                      <View style={s.couponCardHeader}>
+                        <Text style={s.couponName}>{coupon.name}</Text>
+                        <View style={[s.couponStatusBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+                          <Text style={[s.couponStatusBadgeText, { color: badge.text }]}>
+                            {badge.label}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {coupon.description ? (
+                        <Text style={s.couponDesc}>{coupon.description}</Text>
+                      ) : null}
+
+                      {/* Beneficio */}
+                      <Text style={s.couponBenefit}>
+                        {formatCouponBenefit(coupon)}
+                      </Text>
+
+                      {/* Compra mínima si aplica */}
+                      {minAmount > 0 && (
+                        <Text style={s.couponMinOrder}>
+                          Compra mínima ${Number(minAmount).toLocaleString('es-CO')}
+                        </Text>
+                      )}
+
+                      {/* Caja con código */}
+                      <View style={s.couponCodeBox}>
+                        <Text style={s.couponCodeText}>{coupon.code}</Text>
+                        <TouchableOpacity
+                          style={s.couponCopyBtn}
+                          onPress={() => handleCopyCoupon(coupon.code)}
+                          activeOpacity={0.8}
+                        >
+                          <Feather
+                            name={isCopied ? 'check' : 'copy'}
+                            size={12}
+                            color={isCopied ? BRAND.statusPaid : BRAND.rose}
+                          />
+                          <Text
+                            style={[
+                              s.couponCopyBtnText,
+                              isCopied && { color: BRAND.statusPaid },
+                            ]}
+                          >
+                            {isCopied ? '¡Copiado!' : 'Copiar'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Vencimiento */}
+                      <View style={s.couponExpiryRow}>
+                        <Feather name="clock" size={12} color={BRAND.inkLight} />
+                        <Text style={s.couponExpiryText}>{dateText}</Text>
+                        {daysLeftText && isUsable ? (
+                          <View style={s.couponDaysLeftBadge}>
+                            <Text style={s.couponDaysLeftText}>{daysLeftText}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {/* Pie de tarjeta: Usar ahora / Eliminar */}
+                      <View style={s.couponFooter}>
+                        {isUsable ? (
+                          <TouchableOpacity
+                            style={s.couponUseBtn}
+                            onPress={() =>
+                              router.push({
+                                pathname: '/(tabs)/cart',
+                                params: { coupon: coupon.code },
+                              })
+                            }
+                            activeOpacity={0.8}
+                          >
+                            <Text style={s.couponUseBtnText}>Usar ahora</Text>
+                            <Feather name="arrow-right" size={13} color={BRAND.rose} />
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={[s.couponExpiryText, { fontStyle: 'italic' }]}>
+                            No disponible para compra
+                          </Text>
+                        )}
+
+                        {coupon.dismissable ? (
+                          <TouchableOpacity
+                            style={s.couponDismissBtn}
+                            onPress={() => handleDismissCoupon(coupon)}
+                            disabled={isDismissing}
+                            activeOpacity={0.8}
+                          >
+                            {isDismissing ? (
+                              <ActivityIndicator size="small" color={BRAND.statusCancelled} />
+                            ) : (
+                              <Feather name="trash-2" size={12} color={BRAND.statusCancelled} />
+                            )}
+                            <Text style={s.couponDismissBtnText}>Eliminar</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                });
+              })()
+            )}
+          </View>
+        )}
+
         {/* ── SECCIÓN: MI PERFIL ───────────────────────────────────────────── */}
         {activeSection === 'profile' && (
           <View style={s.section}>
@@ -1789,12 +2169,24 @@ const s = StyleSheet.create({
   accountEmail: { fontFamily: BRAND.fontBody, fontSize: 13, color: BRAND.inkMid, marginBottom: 1 },
   accountPhone: { fontFamily: BRAND.fontBody, fontSize: 12, color: BRAND.inkLight },
 
-  // Sub-menú de secciones
-  sectionNav: { flexDirection: 'row', gap: 8, marginBottom: 24 },
+  // Sub-menú de secciones en cuadrícula 2x2
+  sectionNav: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 8,
+    marginBottom: 24,
+  },
   navCard: {
-    flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 6,
-    backgroundColor: BRAND.white, borderRadius: BRAND.radius,
-    borderWidth: 1, borderColor: BRAND.divider, gap: 4,
+    width: '48.7%',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radius,
+    borderWidth: 1,
+    borderColor: BRAND.divider,
+    gap: 4,
   },
   navCardActive: { backgroundColor: BRAND.rose, borderColor: BRAND.rose },
   navCardLabel: { fontFamily: BRAND.fontBody, fontSize: 11, color: BRAND.inkMid, fontWeight: '600', textAlign: 'center' },
@@ -2228,5 +2620,277 @@ const s = StyleSheet.create({
     fontSize: 15,
     color: BRAND.inkMid,
     fontWeight: '600',
+  },
+  modalSavedNote: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 12,
+    color: BRAND.rose,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  secondaryModalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  secondaryModalButtonText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 14,
+    color: BRAND.inkLight,
+    fontWeight: '600',
+  },
+
+  // ── Estilos de Mis Cupones ────────────────────────────────────────────────
+  couponFormCard: {
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radius,
+    borderWidth: 1,
+    borderColor: BRAND.divider,
+    padding: 16,
+    marginBottom: 16,
+  },
+  couponFormTitle: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 14,
+    fontWeight: '700',
+    color: BRAND.ink,
+    marginBottom: 4,
+  },
+  couponFormSubtitle: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 12,
+    color: BRAND.inkLight,
+    marginBottom: 12,
+  },
+  couponInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  couponInput: {
+    flex: 1,
+    height: 44,
+    backgroundColor: BRAND.cream,
+    borderRadius: BRAND.radiusSm,
+    borderWidth: 1,
+    borderColor: BRAND.divider,
+    paddingHorizontal: 12,
+    fontFamily: BRAND.fontBody,
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND.ink,
+    letterSpacing: 1,
+  },
+  couponSaveBtn: {
+    backgroundColor: BRAND.rose,
+    borderRadius: BRAND.radiusSm,
+    height: 44,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 84,
+  },
+  couponSaveBtnDisabled: {
+    opacity: 0.5,
+  },
+  couponSaveBtnText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND.white,
+  },
+  couponTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  couponTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: BRAND.radiusSm,
+    backgroundColor: BRAND.white,
+    borderWidth: 1,
+    borderColor: BRAND.divider,
+  },
+  couponTabActive: {
+    backgroundColor: BRAND.ink,
+    borderColor: BRAND.ink,
+  },
+  couponTabText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 12,
+    fontWeight: '600',
+    color: BRAND.inkMid,
+  },
+  couponTabTextActive: {
+    color: BRAND.white,
+  },
+  couponTabBadge: {
+    backgroundColor: BRAND.roseLight,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  couponTabBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  couponTabBadgeText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 10,
+    fontWeight: '700',
+    color: BRAND.rose,
+  },
+  couponTabBadgeTextActive: {
+    color: BRAND.white,
+  },
+  couponCard: {
+    backgroundColor: BRAND.white,
+    borderRadius: BRAND.radius,
+    borderWidth: 1,
+    borderColor: BRAND.divider,
+    padding: 16,
+    marginBottom: 12,
+  },
+  couponCardDisabled: {
+    opacity: 0.75,
+    backgroundColor: '#FAF8F5',
+  },
+  couponCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 6,
+  },
+  couponName: {
+    flex: 1,
+    fontFamily: BRAND.fontBody,
+    fontSize: 14,
+    fontWeight: '700',
+    color: BRAND.ink,
+  },
+  couponStatusBadge: {
+    borderRadius: 100,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
+  couponStatusBadgeText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  couponDesc: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 12,
+    color: BRAND.inkLight,
+    marginBottom: 8,
+  },
+  couponBenefit: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 15,
+    fontWeight: '800',
+    color: BRAND.rose,
+    marginBottom: 4,
+  },
+  couponMinOrder: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 11,
+    color: BRAND.inkMid,
+    marginBottom: 10,
+  },
+  couponCodeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: BRAND.cream,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: BRAND.roseLight,
+    borderRadius: BRAND.radiusSm,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  couponCodeText: {
+    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }) as string,
+    fontSize: 13,
+    fontWeight: '800',
+    color: BRAND.ink,
+    letterSpacing: 1.5,
+  },
+  couponCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: BRAND.white,
+  },
+  couponCopyBtnText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 11,
+    fontWeight: '700',
+    color: BRAND.rose,
+  },
+  couponExpiryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  couponExpiryText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 11,
+    color: BRAND.inkLight,
+  },
+  couponDaysLeftBadge: {
+    backgroundColor: BRAND.statusPendingBg,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  couponDaysLeftText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 10,
+    fontWeight: '700',
+    color: BRAND.statusPending,
+  },
+  couponFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: BRAND.divider,
+    paddingTop: 10,
+    marginTop: 10,
+  },
+  couponUseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  couponUseBtnText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 12,
+    fontWeight: '700',
+    color: BRAND.rose,
+  },
+  couponDismissBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  couponDismissBtnText: {
+    fontFamily: BRAND.fontBody,
+    fontSize: 11,
+    fontWeight: '600',
+    color: BRAND.statusCancelled,
   },
 });

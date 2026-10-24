@@ -73,11 +73,22 @@ export function WelcomeCouponModal() {
             Válido por los próximos <Text style={{ fontWeight: 'bold' }}>{daysLeft} días</Text> en pedidos superiores a <Text style={{ fontWeight: 'bold' }}>{formattedMinOrder}</Text>. Tu código también fue enviado a tu correo electrónico.
           </Text>
 
+          <Text style={styles.savedNoteText}>
+            Queda guardado en Cuenta → Mis Cupones
+          </Text>
+
           <TouchableOpacity
             style={styles.primaryButton}
             activeOpacity={0.85}
             onPress={clearWelcomeCoupon}>
             <Text style={styles.primaryButtonText}>Continuar explorando</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            activeOpacity={0.85}
+            onPress={clearWelcomeCoupon}>
+            <Text style={styles.secondaryButtonText}>Guardar para después</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -215,7 +226,14 @@ const styles = StyleSheet.create({
     color: BRAND.slate,
     textAlign: 'center',
     lineHeight: 18,
-    marginBottom: 24,
+    marginBottom: 12,
+  },
+  savedNoteText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: BRAND.moss,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   primaryButton: {
     backgroundColor: BRAND.ink,
@@ -224,10 +242,24 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 10,
   },
   primaryButtonText: {
     color: BRAND.paper,
     fontSize: 15,
     fontWeight: '700',
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    width: '100%',
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: BRAND.slate,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

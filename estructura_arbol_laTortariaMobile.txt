@@ -1,96 +1,6 @@
 ﻿|-- .claude
     |-- settings.json
-|-- .expo
-    |-- dev
-        |-- logs
-            |-- export.log
-            |-- start.log
-    |-- types
-        |-- router.d.ts
-    |-- web
-        |-- cache
-            |-- production
-                |-- images
-                    |-- android-adaptive-foreground
-                        |-- android-adaptive-foreground-27c7cc67dcc3033c2a4a36200dac6b74b670caa64f5759134ce414ad78d1510e-cover-transparent
-                            |-- icon_108.png
-                            |-- icon_162.png
-                            |-- icon_216.png
-                            |-- icon_324.png
-                            |-- icon_432.png
-                    |-- android-notification
-                        |-- android-notification-ba66c76097505e7a1a1466e69ebc583d35a9726f5396c8d43d74e9e15b20dbff-cover-transparent
-                            |-- icon_24.png
-                            |-- icon_36.png
-                            |-- icon_48.png
-                            |-- icon_72.png
-                            |-- icon_96.png
-                    |-- android-standard-circle
-                        |-- android-standard-circle-ba66c76097505e7a1a1466e69ebc583d35a9726f5396c8d43d74e9e15b20dbff-cover-transparent
-                            |-- icon_144.png
-                            |-- icon_192.png
-                            |-- icon_48.png
-                            |-- icon_72.png
-                            |-- icon_96.png
-                    |-- android-standard-square
-                        |-- android-standard-square-ba66c76097505e7a1a1466e69ebc583d35a9726f5396c8d43d74e9e15b20dbff-cover-transparent
-                            |-- icon_144.png
-                            |-- icon_192.png
-                            |-- icon_48.png
-                            |-- icon_72.png
-                            |-- icon_96.png
-                    |-- favicon
-                        |-- favicon-3cca3004e3d33e65247ddd3e6fada5cbd40cb06d54718528ca361aafbdb8ba3f-contain-transparent
-                            |-- favicon-48.png
-                        |-- favicon-a4e030697a7571b3e95d31860e4da55d2f98e5e861e2b55e414f45a8556828ba-contain-transparent
-                            |-- favicon-48.png
-                    |-- splash-android
-                        |-- splash-android-15f12218192dc621f1f9f875c3e097efcb2922fe553710538def0385aa10e248-contain
-                            |-- icon_100.png
-                            |-- icon_150.png
-                            |-- icon_200.png
-                            |-- icon_300.png
-                            |-- icon_400.png
-                        |-- splash-android-d9d1134f41c8f80938183e8975e351bc12f18995beb5d570caafd75749ef10d6-contain
-                            |-- icon_100.png
-                            |-- icon_150.png
-                            |-- icon_200.png
-                            |-- icon_300.png
-                            |-- icon_400.png
-    |-- devices.json
-    |-- README.md
-    |-- settings.json
-|-- .vscode
-    |-- extensions.json
-    |-- settings.json
 |-- android
-    |-- .gradle
-        |-- 9.3.1
-            |-- checksums
-                |-- checksums.lock
-                |-- md5-checksums.bin
-                |-- sha1-checksums.bin
-            |-- executionHistory
-                |-- executionHistory.bin
-                |-- executionHistory.lock
-            |-- expanded
-            |-- fileChanges
-                |-- last-build.bin
-            |-- fileHashes
-                |-- fileHashes.bin
-                |-- fileHashes.lock
-                |-- resourceHashesCache.bin
-            |-- vcsMetadata
-            |-- gc.properties
-        |-- buildOutputCleanup
-            |-- buildOutputCleanup.lock
-            |-- cache.properties
-            |-- outputFiles.bin
-        |-- noVersion
-            |-- buildLogic.lock
-        |-- vcs-1
-            |-- gc.properties
-        |-- file-system.probe
     |-- .kotlin
         |-- sessions
     |-- app
@@ -109,278 +19,326 @@
                                             |-- hermes-engine
                                                 |-- hermes-engineConfig.cmake
                                                 |-- hermes-engineConfigVersion.cmake
+                                            |-- ReactAndroid
+                                                |-- ReactAndroidConfig.cmake
+                                                |-- ReactAndroidConfigVersion.cmake
                                             |-- react-native-reanimated
                                                 |-- react-native-reanimatedConfig.cmake
                                                 |-- react-native-reanimatedConfigVersion.cmake
                                             |-- react-native-worklets
                                                 |-- react-native-workletsConfig.cmake
                                                 |-- react-native-workletsConfigVersion.cmake
-                                            |-- ReactAndroid
-                                                |-- ReactAndroidConfig.cmake
-                                                |-- ReactAndroidConfigVersion.cmake                                      
+                    |-- x86_64
+                        |-- .cmake
+                            |-- api
+                                |-- v1
+                                    |-- query
+                                        |-- client-agp
+                                            |-- cache-v2
+                                            |-- cmakeFiles-v1
+                                            |-- codemodel-v2
+                                    |-- reply
+                                        |-- cache-v2-3ec66dee58a1b288b54e.json
+                                        |-- cmakeFiles-v1-b5e330f32994c2be74f8.json
+                                        |-- codemodel-v2-df42507368553c27c895.json
+                                        |-- directory-.-Debug-d0094a50bb2071803777.json
+                                        |-- directory-rnasyncstorage_autolinked_build-Debug-a596a5752a21d8ec91e8.json
+                                        |-- directory-RNCWebViewSpec_autolinked_build-Debug-f48747f3a9803f1e9916.json
+                                        |-- directory-rnreanimated_autolinked_build-Debug-f9c4e4995e7bae3c7b10.json
+                                        |-- directory-rnscreens_autolinked_build-Debug-9d5182a003fcdf06409f.json
+                                        |-- directory-rnsvg_autolinked_build-Debug-12b260d627eae86f964c.json
+                                        |-- directory-rnworklets_autolinked_build-Debug-421e516e3a5daac70e53.json
+                                        |-- directory-safeareacontext_autolinked_build-Debug-f952d15423c3115a315d.json
+                                        |-- index-2026-10-09T15-50-04-0845.json
+                                        |-- target-appmodules-Debug-23f6cda961e1e7d5dbf7.json
+                                        |-- target-react_codegen_rnasyncstorage-Debug-cf712142ad50e9092ab4.json
+                                        |-- target-react_codegen_RNCWebViewSpec-Debug-c51aa5cbaba156d6dbb2.json
+                                        |-- target-react_codegen_rnreanimated-Debug-30d573f6350486a42d9e.json
+                                        |-- target-react_codegen_rnscreens-Debug-bda6265f1be677e367c4.json
+                                        |-- target-react_codegen_rnsvg-Debug-b73865fdc2559a85c263.json
+                                        |-- target-react_codegen_rnworklets-Debug-7742dfb475d7dc041cfb.json
+                                        |-- target-react_codegen_safeareacontext-Debug-a4dbe12b8bc6ebd793f2.json
+                        |-- CMakeFiles
+                            |-- _CMakeLTOTest-CXX
+                                |-- bin
+                                    |-- CMakeFiles
+                                        |-- boo.dir
+                                            |-- main.cpp.o
+                                        |-- foo.dir
+                                            |-- foo.cpp.o
+                                        |-- cmake.check_cache
+                                        |-- rules.ninja
+                                        |-- TargetDirectories.txt
+                                    |-- .ninja_deps
+                                    |-- .ninja_log
+                                    |-- build.ninja
+                                    |-- cmake_install.cmake
+                                    |-- CMakeCache.txt
+                                    |-- libfoo.a
+                                |-- src
+                                    |-- CMakeLists.txt
+                                    |-- foo.cpp
+                                    |-- main.cpp
+                            |-- 3.22.1-g37088a8-dirty
+                                |-- CompilerIdC
+                                    |-- tmp
+                                    |-- CMakeCCompilerId.c
+                                    |-- CMakeCCompilerId.o
+                                |-- CompilerIdCXX
+                                    |-- tmp
+                                    |-- CMakeCXXCompilerId.cpp
+                                    |-- CMakeCXXCompilerId.o
+                                |-- CMakeCCompiler.cmake
+                                |-- CMakeCXXCompiler.cmake
+                                |-- CMakeDetermineCompilerABI_C.bin
+                                |-- CMakeDetermineCompilerABI_CXX.bin
+                                |-- CMakeSystem.cmake
+                            |-- appmodules.dir
+                                |-- E_
+                                    |-- Job
+                                        |-- _PIR_20
+                                            |-- Project_PIR2
+                                                |-- LaTortariaMobile
+                                                    |-- android
+                                                        |-- app
+                                |-- OnLoad.cpp.o
+                            |-- CMakeTmp
+                            |-- cmake.check_cache
+                            |-- cmake.verify_globs
+                            |-- rules.ninja
+                            |-- TargetDirectories.txt
+                            |-- VerifyGlobs.cmake
+                        |-- rnasyncstorage_autolinked_build
+                            |-- CMakeFiles
+                                |-- react_codegen_rnasyncstorage.dir
+                                    |-- react
+                                        |-- renderer
+                                            |-- components
+                                                |-- rnasyncstorage
+                                                    |-- ComponentDescriptors.cpp.o
+                                                    |-- EventEmitters.cpp.o
+                                                    |-- Props.cpp.o
+                                                    |-- ShadowNodes.cpp.o
+                                                    |-- States.cpp.o
+                                    |-- rnasyncstorage-generated.cpp.o
+                            |-- cmake_install.cmake
+                        |-- RNCWebViewSpec_autolinked_build
+                            |-- CMakeFiles
+                                |-- react_codegen_RNCWebViewSpec.dir
+                                    |-- react
+                                        |-- renderer
+                                            |-- components
+                                                |-- RNCWebViewSpec
+                                                    |-- ComponentDescriptors.cpp.o
+                                                    |-- EventEmitters.cpp.o
+                                                    |-- Props.cpp.o
+                                                    |-- ShadowNodes.cpp.o
+                                                    |-- States.cpp.o
+                                    |-- RNCWebViewSpec-generated.cpp.o
+                            |-- cmake_install.cmake
+                        |-- rnreanimated_autolinked_build
+                            |-- CMakeFiles
+                                |-- react_codegen_rnreanimated.dir
+                                    |-- react
+                                        |-- renderer
+                                            |-- components
+                                                |-- rnreanimated
+                                                    |-- ComponentDescriptors.cpp.o
+                                                    |-- EventEmitters.cpp.o
+                                                    |-- Props.cpp.o
+                                                    |-- ShadowNodes.cpp.o
+                                                    |-- States.cpp.o
+                                    |-- rnreanimated-generated.cpp.o
+                            |-- cmake_install.cmake
+                        |-- rnscreens_autolinked_build
+                            |-- CMakeFiles
+                                |-- react_codegen_rnscreens.dir
+                                    |-- 20aa17be9eed6269539c8443b4f9297f
+                                        |-- codegen
+                                            |-- jni
+                                                |-- react
+                                                    |-- renderer
+                                                        |-- components
+                                                            |-- rnscreens
+                                                                |-- Props.cpp.o
+                                                                |-- ShadowNodes.cpp.o
+                                                                |-- States.cpp.o
+                                    |-- 5d25abd009af65e36a890215e8fe8340
+                                        |-- renderer
+                                            |-- components
+                                                |-- rnscreens
+                                                    |-- RNSFormSheetHostShadowNode.cpp.o
+                                                    |-- RNSModalScreenShadowNode.cpp.o
+                                                    |-- RNSSafeAreaViewShadowNode.cpp.o
+                                                    |-- RNSScreenShadowNodeCommitHook.cpp.o
+                                                    |-- RNSSplitScreenShadowNode.cpp.o
+                                                    |-- RNSStackHeaderConfigState.cpp.o
+                                                    |-- RNSStackHeaderItemShadowNode.cpp.o
+                                                    |-- RNSStackHeaderSubviewState.cpp.o
+                                                    |-- RNSStackScreenShadowNode.cpp.o
+                                    |-- 70027f61f6d25252a0e10097d6fd8b56
+                                        |-- react
+                                            |-- renderer
+                                                |-- components
+                                                    |-- rnscreens
+                                                        |-- ComponentDescriptors.cpp.o
+                                    |-- 79ea4e8ebf70ad7501bd20bff26df66d
+                                        |-- components
+                                            |-- rnscreens
+                                                |-- RNSFullWindowOverlayShadowNode.cpp.o
+                                                |-- RNSScreenStackHeaderConfigShadowNode.cpp.o
+                                                |-- RNSScreenStackHeaderConfigState.cpp.o
+                                                |-- RNSScreenStackHeaderSubviewShadowNode.cpp.o
+                                                |-- RNSScreenStackHeaderSubviewState.cpp.o
+                                                |-- RNSStackHeaderConfigShadowNode.cpp.o
+                                                |-- RNSStackHeaderSubviewShadowNode.cpp.o
+                                                |-- RNSTabsBottomAccessoryShadowNode.cpp.o
+                                    |-- bdf3c4e726ad2adff8d2b9ed135bd499
+                                        |-- jni
+                                            |-- react
+                                                |-- renderer
+                                                    |-- components
+                                                        |-- rnscreens
+                                                            |-- EventEmitters.cpp.o
+                                    |-- d0fec80666056930c2939837ae0cd329
+                                        |-- react
+                                            |-- renderer
+                                                |-- components
+                                                    |-- rnscreens
+                                                        |-- RNSFormSheetHostState.cpp.o
+                                                        |-- RNSSafeAreaViewState.cpp.o
+                                                        |-- RNSStackHeaderItemState.cpp.o
+                                                        |-- RNSTabsHostShadowNode.cpp.o
+                                    |-- f7bdafb3e659bb09cd65809b9b9918a7
+                                        |-- cpp
+                                            |-- react
+                                                |-- renderer
+                                                    |-- components
+                                                        |-- rnscreens
+                                                            |-- RNSScreenShadowNode.cpp.o
+                                                            |-- RNSScreenState.cpp.o
+                                                            |-- RNSStackScreenState.cpp.o
+                                                            |-- RNSTabsHostState.cpp.o
+                                    |-- rnscreens.cpp.o
+                            |-- cmake_install.cmake
+                        |-- rnsvg_autolinked_build
+                            |-- CMakeFiles
+                                |-- react_codegen_rnsvg.dir
+                                    |-- 04fa636dcc060aaaf354a55c45a337f8
+                                        |-- codegen
+                                            |-- jni
+                                                |-- react
+                                                    |-- renderer
+                                                        |-- components
+                                                            |-- rnsvg
+                                                                |-- ComponentDescriptors.cpp.o
+                                    |-- 446f0b6c10f4d52087d124eb41519fef
+                                        |-- generated
+                                            |-- source
+                                                |-- codegen
+                                                    |-- jni
+                                                        |-- react
+                                                            |-- renderer
+                                                                |-- components
+                                                                    |-- rnsvg
+                                                                        |-- Props.cpp.o
+                                                                        |-- States.cpp.o
+                                    |-- 5c6c0e8885149829995add0bd92dd98b
+                                        |-- common
+                                            |-- cpp
+                                                |-- react
+                                                    |-- renderer
+                                                        |-- components
+                                                            |-- rnsvg
+                                                                |-- RNSVGImageShadowNode.cpp.o
+                                                                |-- RNSVGImageState.cpp.o
+                                                                |-- RNSVGShadowNodes.cpp.o
+                                    |-- c1f0110e2ec1012b82c336e4d6977e21
+                                        |-- cpp
+                                            |-- react
+                                                |-- renderer
+                                                    |-- components
+                                                        |-- rnsvg
+                                                            |-- RNSVGLayoutableShadowNode.cpp.o
+                                    |-- e3bf59945250cf3028b8e33c0d65f191
+                                        |-- source
+                                            |-- codegen
+                                                |-- jni
+                                                    |-- react
+                                                        |-- renderer
+                                                            |-- components
+                                                                |-- rnsvg
+                                                                    |-- EventEmitters.cpp.o
+                                                                    |-- ShadowNodes.cpp.o
+                                    |-- rnsvg.cpp.o
+                            |-- cmake_install.cmake
+                        |-- rnworklets_autolinked_build
+                            |-- CMakeFiles
+                                |-- react_codegen_rnworklets.dir
+                                    |-- react
+                                        |-- renderer
+                                            |-- components
+                                                |-- rnworklets
+                                                    |-- ComponentDescriptors.cpp.o
+                                                    |-- EventEmitters.cpp.o
+                                                    |-- Props.cpp.o
+                                                    |-- ShadowNodes.cpp.o
+                                                    |-- States.cpp.o
+                                    |-- rnworklets-generated.cpp.o
+                            |-- cmake_install.cmake
+                        |-- safeareacontext_autolinked_build
+                            |-- CMakeFiles
+                                |-- react_codegen_safeareacontext.dir
+                                    |-- 0daa0610841d0072f80c0c4845d00da9
+                                        |-- components
+                                            |-- safeareacontext
+                                                |-- ComponentDescriptors.cpp.o
+                                                |-- EventEmitters.cpp.o
+                                    |-- 3e29b9b3d7d817732acdd71b4bcb8a68
+                                        |-- components
+                                            |-- safeareacontext
+                                                |-- RNCSafeAreaViewState.cpp.o
+                                    |-- 59464c51a85db5aa8c0d7e94463895e4
+                                        |-- renderer
+                                            |-- components
+                                                |-- safeareacontext
+                                                    |-- ShadowNodes.cpp.o
+                                                    |-- States.cpp.o
+                                    |-- a73689965f59f41d75f48a4b76839664
+                                        |-- react
+                                            |-- renderer
+                                                |-- components
+                                                    |-- safeareacontext
+                                                        |-- Props.cpp.o
+                                    |-- ba21488f6fba0465359f59428abb6e24
+                                        |-- safeareacontext
+                                            |-- RNCSafeAreaViewShadowNode.cpp.o
+                                    |-- c69a608499f802a15e7c880099bd35a8
+                                        |-- source
+                                            |-- codegen
+                                                |-- jni
+                                                    |-- safeareacontext-generated.cpp.o
+                            |-- cmake_install.cmake
+                        |-- .ninja_deps
+                        |-- .ninja_log
+                        |-- additional_project_files.txt
+                        |-- android_gradle_build.json
+                        |-- android_gradle_build_mini.json
+                        |-- build.ninja
+                        |-- build_file_index.txt
+                        |-- cmake_install.cmake
+                        |-- CMakeCache.txt
+                        |-- compile_commands.json
+                        |-- compile_commands.json.bin
+                        |-- configure_fingerprint.bin
+                        |-- metadata_generation_command.txt
+                        |-- prefab_config.json
+                        |-- symbol_folder_index.txt
+                    |-- hash_key.txt
             |-- tools
                 |-- debug
                     |-- x86_64
                         |-- compile_commands.json
-        |-- build
-            |-- generated
-                |-- ap_generated_sources
-                    |-- debug
-                        |-- out
-                |-- autolinking
-                    |-- src
-                        |-- main
-                            |-- java
-                                |-- com
-                                    |-- facebook
-                                        |-- react
-                                            |-- PackageList.java
-                                            |-- ReactNativeApplicationEntryPoint.java
-                            |-- jni
-                                |-- Android-autolinking.cmake
-                                |-- autolinking.cpp
-                                |-- autolinking.h
-                |-- res
-                    |-- pngs
-                        |-- debug
-                    |-- resValues
-                        |-- debug
-                            |-- values
-                                |-- gradleResValues.xml
-                |-- source
-                    |-- buildConfig
-                        |-- debug
-                            |-- com
-                                |-- jairodiazv0
-                                    |-- LaTortariaMobile
-                                        |-- BuildConfig.java
-            |-- intermediates
-                |-- aar_metadata_check
-                    |-- debug
-                        |-- checkDebugAarMetadata
-                |-- annotation_processor_list
-                    |-- debug
-                        |-- javaPreCompileDebug
-                            |-- annotationProcessors.json
-                |-- apk_ide_redirect_file
-                    |-- debug
-                        |-- createDebugApkListingFileRedirect
-                            |-- redirect.txt
-                |-- app_metadata
-                    |-- debug
-                        |-- writeDebugAppMetadata
-                            |-- app-metadata.properties
-                |-- assets
-                    |-- debug
-                        |-- mergeDebugAssets
-                            |-- mlkit_barcode_models
-                                |-- barcode_ssd_mobilenet_v1_dmp25_quant.tflite
-                                |-- oned_auto_regressor_mobile.tflite
-                                |-- oned_feature_extractor_mobile.tflite
-                            |-- app.config
-                |-- classes
-                    |-- debug
-                        |-- transformDebugClassesWithAsm
-                            |-- dirs
-                                |-- com
-                                    |-- facebook
-                                        |-- react
-                                            |-- PackageList.class
-                                            |-- ReactNativeApplicationEntryPoint.class
-                                    |-- jairodiazv0
-                                        |-- LaTortariaMobile
-                                            |-- BuildConfig.class
-                                            |-- MainActivity$createReactActivityDelegate$1.class
-                                            |-- MainActivity.class
-                                            |-- MainApplication.class
-                                |-- META-INF
-                                    |-- app_debug.kotlin_module
-                            |-- jars
-                                |-- 0.jar
-                |-- compatible_screen_manifest
-                    |-- debug
-                        |-- createDebugCompatibleScreenManifests
-                            |-- output-metadata.json
-                |-- compile_and_runtime_not_namespaced_r_class_jar
-                    |-- debug
-                        |-- processDebugResources
-                            |-- R.jar
-                |-- compressed_assets
-                    |-- debug
-                        |-- compressDebugAssets
-                            |-- out
-                                |-- assets
-                                    |-- mlkit_barcode_models
-                                        |-- barcode_ssd_mobilenet_v1_dmp25_quant.tflite.jar
-                                        |-- oned_auto_regressor_mobile.tflite.jar
-                                        |-- oned_feature_extractor_mobile.tflite.jar
-                                    |-- app.config.jar
-                |-- cxx
-                    |-- Debug
-                        |-- 6616185h
-                            |-- logs
-                                |-- x86_64
-                                    |-- build_command_targets.bat
-                                    |-- build_model.json
-                                    |-- build_stderr_targets.txt
-                                    |-- build_stdout_targets.txt
-                                    |-- configure_command.bat
-                                    |-- configure_stderr.txt
-                                    |-- configure_stdout.txt
-                                    |-- generate_cxx_metadata_162_timing.txt
-                                    |-- generate_cxx_metadata_167_timing.txt
-                                    |-- metadata_generation_record.json
-                                    |-- prefab_command.bat
-                                    |-- prefab_stderr.txt
-                                    |-- prefab_stdout.txt
-                            |-- obj
-                                |-- x86_64
-                                    |-- libappmodules.so
-                                    |-- libc++_shared.so
-                                    |-- libfbjni.so
-                                    |-- libjsi.so
-                                    |-- libreactnative.so
-                                    |-- libreact_codegen_rnscreens.so
-                                    |-- libreact_codegen_rnsvg.so
-                                    |-- libreact_codegen_safeareacontext.so
-                    |-- refs
-                        |-- react-native-reanimated
-                            |-- 6y3n5549
-                                |-- modules
-                                    |-- reanimated
-                                        |-- include
-                                            |-- placeholder.txt
-                                        |-- libs
-                                            |-- android.x86_64
-                                                |-- abi.json
-                                        |-- module.json
-                                |-- prefab.json
-                                |-- prefab_publication.json
-                        |-- react-native-worklets
-                            |-- 52d2h3x6
-                                |-- modules
-                                    |-- worklets
-                                        |-- include
-                                            |-- placeholder.txt
-                                        |-- libs
-                                            |-- android.x86_64
-                                                |-- abi.json
-                                        |-- module.json
-                                |-- prefab.json
-                                |-- prefab_publication.json
-                |-- data_binding_layout_info_type_merge
-                    |-- debug
-                        |-- mergeDebugResources
-                            |-- out
-                |-- data_binding_layout_info_type_package
-                    |-- debug
-                        |-- packageDebugResources
-                            |-- out
-                |-- desugar_graph
-                    |-- debug
-                        |-- dexBuilderDebug
-                            |-- out
-                                |-- currentProject
-                                    |-- dirs_bucket_0
-                                        |-- graph.bin
-                                    |-- dirs_bucket_1
-                                        |-- graph.bin
-                                    |-- dirs_bucket_2
-                                        |-- graph.bin
-                                    |-- dirs_bucket_3
-                                        |-- graph.bin
-                                    |-- dirs_bucket_4
-                                        |-- graph.bin
-                                    |-- dirs_bucket_5
-                                        |-- graph.bin
-                                    |-- jar_690a89713599d6be61802baf2c0d036e5b16e66cf8599a81dc3ad59f40309085_bucket_0
-                                        |-- graph.bin
-                                    |-- jar_690a89713599d6be61802baf2c0d036e5b16e66cf8599a81dc3ad59f40309085_bucket_1
-                                        |-- graph.bin
-                                    |-- jar_690a89713599d6be61802baf2c0d036e5b16e66cf8599a81dc3ad59f40309085_bucket_2
-                                        |-- graph.bin
-                                    |-- jar_690a89713599d6be61802baf2c0d036e5b16e66cf8599a81dc3ad59f40309085_bucket_3
-                                        |-- graph.bin
-                                    |-- jar_690a89713599d6be61802baf2c0d036e5b16e66cf8599a81dc3ad59f40309085_bucket_4
-                                        |-- graph.bin
-                                    |-- jar_690a89713599d6be61802baf2c0d036e5b16e66cf8599a81dc3ad59f40309085_bucket_5
-                                        |-- graph.bin
-                                |-- externalLibs
-                                |-- mixedScopes
-                                |-- otherProjects
-                |-- javac
-                    |-- debug
-                        |-- compileDebugJavaWithJavac
-                            |-- classes
-                                |-- com
-                                    |-- facebook
-                                        |-- react
-                                            |-- PackageList.class
-                                            |-- ReactNativeApplicationEntryPoint.class
-                                    |-- jairodiazv0
-                                        |-- LaTortariaMobile
-                                            |-- BuildConfig.class
-                |-- java_res
-                    |-- debug
-                        |-- processDebugJavaRes
-                            |-- out
-                                |-- com
-                                    |-- jairodiazv0
-                                        |-- LaTortariaMobile
-                                |-- META-INF
-                                    |-- app_debug.kotlin_module
-                |-- linked_resources_binary_format
-                    |-- debug
-                        |-- processDebugResources
-                            |-- linked-resources-binary-format-debug.ap_
-                            |-- output-metadata.json
-                |-- local_only_symbol_list
-                    |-- debug
-                        |-- parseDebugLocalResources
-                            |-- R-def.txt
-                |-- manifest_merge_blame_file
-                    |-- debug
-                        |-- processDebugMainManifest
-                            |-- manifest-merger-blame-debug-report.txt
-                |-- merged_java_res
-                    |-- debug
-                        |-- mergeDebugJavaResource
-                            |-- base.jar
-                |-- merged_jni_libs
-                    |-- debug
-                        |-- mergeDebugJniLibFolders
-                            |-- out
-                |-- merged_manifest
-                    |-- debug
-                        |-- expoDebugOverrideMaxSdkConflicts
-                            |-- AndroidManifest.xml
-                        |-- processDebugMainManifest
-                            |-- AndroidManifest.xml
-                |-- merged_manifests
-                    |-- debug
-                        |-- processDebugManifest
-                            |-- AndroidManifest.xml
-                            |-- output-metadata.json                
-            |-- outputs
-                |-- apk
-                    |-- debug
-                        |-- app-debug.apk
-                        |-- output-metadata.json
-                |-- logs
-                    |-- manifest-merger-debug-report.txt
-            |-- tmp
-                |-- compileDebugJavaWithJavac
-                    |-- previous-compilation-data.bin
-                |-- kotlin-classes
-                    |-- debug
-                        |-- com
-                            |-- jairodiazv0
-                                |-- LaTortariaMobile
-                                    |-- MainActivity$createReactActivityDelegate$1.class
-                                    |-- MainActivity.class
-                                    |-- MainApplication.class
-                        |-- META-INF
-                            |-- app_debug.kotlin_module
         |-- src
             |-- debug
                 |-- AndroidManifest.xml
@@ -445,15 +403,6 @@
         |-- build.gradle
         |-- debug.keystore
         |-- proguard-rules.pro
-    |-- build
-        |-- generated
-            |-- autolinking
-                |-- autolinking.json
-                |-- package-lock.json.sha
-                |-- package.json.sha
-        |-- reports
-            |-- problems
-                |-- problems-report.html
     |-- gradle
         |-- wrapper
             |-- gradle-wrapper.jar
@@ -466,12 +415,12 @@
     |-- settings.gradle
 |-- app
     |-- (tabs)
+        |-- _layout.tsx
         |-- cart.tsx
         |-- explore.tsx
         |-- favorites.tsx
         |-- index.tsx
         |-- profile.tsx
-        |-- _layout.tsx
     |-- auth
         |-- callback.tsx
         |-- reset-password.tsx
@@ -481,11 +430,11 @@
         |-- [id].tsx
     |-- products
         |-- [id].tsx
+    |-- _layout.tsx
     |-- +html.tsx
     |-- +not-found.tsx
     |-- modal.tsx
     |-- search.tsx
-    |-- _layout.tsx
 |-- assets
     |-- fonts
         |-- SpaceMono-Regular.ttf
@@ -501,8 +450,10 @@
     |-- EditScreenInfo.tsx
     |-- ExternalLink.tsx
     |-- HeroBannerCarousel.tsx
+    |-- PostPurchaseNotifyModal.tsx
     |-- ProductCardMobile.tsx
     |-- PushPermissionModal.tsx
+    |-- PushPromoConsentCard.tsx
     |-- StyledText.tsx
     |-- Themed.tsx
     |-- TrustBar.tsx
@@ -516,18 +467,6 @@
     |-- WelcomeCouponModal.tsx
 |-- constants
     |-- Colors.ts
-|-- dist    
-    |-- _expo
-        |-- static
-            |-- js
-                |-- android
-                    |-- entry-aeb992959652be259d137366abb1afb0.hbc
-                    |-- entry-aeb992959652be259d137366abb1afb0.hbc.map
-                |-- ios
-                    |-- entry-cf48f344e8e1f6815db0707ed1a216c3.hbc
-                    |-- entry-cf48f344e8e1f6815db0707ed1a216c3.hbc.map
-    |-- assetmap.json
-    |-- metadata.json
 |-- Documentacion
     |-- Funcionamiento de Notificaciones.txt
 |-- hooks
@@ -542,7 +481,13 @@
 |-- lib
     |-- alegra
         |-- tax-utils.ts
+    |-- analytics.ts
+    |-- analytics.web.ts
+    |-- coupons.ts
+    |-- pushToken.ts
+    |-- receipts.ts
     |-- supabase.ts
+    |-- wheelIdentity.ts
 |-- store
     |-- useCartStore.ts
     |-- useCouponStore.ts
@@ -558,12 +503,15 @@
 |-- app.config.js
 |-- AuthKey_2CV3L83H2K.p8
 |-- CLAUDE.md
+|-- eas - Copy.json
 |-- eas.json
 |-- estructura_arbol_laTortariaMobile.txt
 |-- expo-env.d.ts
 |-- google-service-account.json
+|-- GoogleService-Info.plist
+|-- google-services.json
 |-- Infraestructura_LaTortariaMobile.txt
 |-- LICENSE
-|-- package-lock.json
 |-- package.json
+|-- package-lock.json
 |-- tsconfig.json

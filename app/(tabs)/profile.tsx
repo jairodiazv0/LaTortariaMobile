@@ -1,4 +1,4 @@
-/**
+﻿/**
  * profile.tsx — Pantalla de Identidad y Cuenta
  * LaTortariaMobile · Arquitectura de Auth Blindada v3
  *
@@ -814,7 +814,7 @@ export default function ProfileScreen() {
           email: email.trim().toLowerCase(),
           password,
           options: {
-            data: { full_name: fullName.trim(), phone: phone.trim() || null },
+            data: { full_name: fullName.trim(), phone: phone.trim() || null, signup_source: 'app' },
             emailRedirectTo: 'latortariamobile://auth/callback',
             captchaToken: token,
           },
@@ -929,6 +929,8 @@ export default function ProfileScreen() {
             }
             // Si ya hay sesión, fue el listener de _layout.tsx quien la creó primero; se ignora.
           }
+          // [signup_source] Registrar origen 'app' si el perfil fue creado en los últimos 15 min con valor 'web'
+          supabase.rpc('mark_signup_source_app').then(() => {}, () => {});
         }
       }
     } catch (e: any) {
@@ -968,6 +970,9 @@ export default function ProfileScreen() {
 
         if (error) {
           Alert.alert('Error con Apple', error.message);
+        } else {
+          // [signup_source] Registrar origen 'app' si el perfil fue creado en los últimos 15 min con valor 'web'
+          supabase.rpc('mark_signup_source_app').then(() => {}, () => {});
         }
         // Si es exitoso: onAuthStateChange(SIGNED_IN) actualiza la UI.
         // El upsert de seguridad en loadUserData maneja perfiles huérfanos.

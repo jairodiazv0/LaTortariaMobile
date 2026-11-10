@@ -35,7 +35,11 @@ const BANNER_HEIGHT = 220;
 const HORIZONTAL_MARGIN = 16;
 const AUTOPLAY_MS = 5000;
 
-export default function HeroBannerCarousel({ banners }: HeroBannerCarouselProps) {
+// El banner que promueve descargar la app no se muestra dentro de la app.
+const isDownloadPromo = (b: HeroBanner) => !!b.link_url && b.link_url.includes('/descargar-app');
+
+export default function HeroBannerCarousel({ banners: allBanners }: HeroBannerCarouselProps) {
+  const banners = (allBanners ?? []).filter((b) => !isDownloadPromo(b));
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -75,7 +79,7 @@ export default function HeroBannerCarousel({ banners }: HeroBannerCarouselProps)
   const handleBannerAction = (banner: HeroBanner) => {
     if (!banner.link_url) return;
     if (banner.link_url.startsWith('http')) {
-      Linking.openURL(banner.link_url).catch(() => {});
+      Linking.openURL(banner.link_url).catch(() => { });
       return;
     }
     router.push(banner.link_url as any);
